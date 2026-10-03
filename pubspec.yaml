@@ -1,0 +1,51 @@
+name: apps_transporte
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Estado y Utilidades
+  flutter_riverpod: ^2.4.9
+  shared_preferences: ^2.2.2
+  http: ^1.4.0
+  intl: 0.20.2           # Crucial para formatear fechas
+  url_launcher: ^6.2.1    # Crucial para abrir enlaces de Cloudinary
+  
+  # Archivos y Rutas
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  
+  # Gráficos (Para el Home Screen)
+  fl_chart: ^0.66.0       
+  
+  # Captura de fotos (Para la pantalla de entrega)
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1  # Paquete para el ícono agregado
+
+# Configuración de tu logo
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true # Elimina transparencias requeridas por Apple
+  image_path: "assets/images/sigtrans.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
