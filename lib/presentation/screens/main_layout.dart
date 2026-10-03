@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
+import 'package:apps_transporte/data/datasources/api_service.dart';
+import 'package:apps_transporte/presentation/routes/app_routes.dart';
 import 'package:apps_transporte/presentation/screens/home/dashboard_screen.dart';
 import 'package:apps_transporte/presentation/screens/home/home_screen.dart';
 import 'package:apps_transporte/presentation/screens/historial/historial_screen.dart';
@@ -40,14 +42,46 @@ class _MainLayoutState extends State<MainLayout> {
           ),
           const HistorialScreen(), // 2
           // LA 5TA FUNCIONALIDAD (En blanco por ahora)
-          const Scaffold(
-            backgroundColor: Color(0xFFF8F9FA),
-            body: Center(
-              child: Text(
-                "Perfil del Conductor (Próximamente)",
-                style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontWeight: FontWeight.bold,
+          Scaffold(
+            backgroundColor: const Color(0xFFF8F9FA),
+            body: SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      ApiService.currentUser?['nombres']?.toString() ??
+                          'Usuario',
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Conexión de solo consulta'),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await ApiService.logout();
+                        if (!context.mounted) return;
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          AppRoutes.login,
+                          (_) => false,
+                        );
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Cerrar sesión'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await ApiService.logout();
+                        if (!context.mounted) return;
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          AppRoutes.configuracion,
+                          (_) => false,
+                        );
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Cambiar servidor o empresa'),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -198,7 +232,7 @@ class _MainLayoutState extends State<MainLayout> {
                   const Icon(Icons.send, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    "Enviar ($_selectedPackagesCount)",
+                    "Solo lectura",
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

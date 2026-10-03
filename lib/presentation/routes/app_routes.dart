@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:apps_transporte/data/datasources/api_service.dart';
 import 'package:apps_transporte/presentation/screens/configuracion/configuracion_screen.dart';
 import 'package:apps_transporte/presentation/screens/login/login_screen.dart';
 import 'package:apps_transporte/presentation/screens/main_layout.dart';
@@ -16,6 +17,10 @@ class AppRoutes {
   static const String historial = HistorialScreen.routeName;
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    if ([mainLayout, home, historial].contains(settings.name) &&
+        !ApiService.hasSession) {
+      return MaterialPageRoute(builder: (_) => const LoginScreen());
+    }
     switch (settings.name) {
       case configuracion:
         return MaterialPageRoute(builder: (_) => const ConfiguracionScreen());

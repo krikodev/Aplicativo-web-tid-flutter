@@ -91,6 +91,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
           _historial = result['data'] ?? [];
         } else {
           _historial = [];
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result['message'] ?? 'No se pudo consultar el historial',
+              ),
+            ),
+          );
         }
       });
     }

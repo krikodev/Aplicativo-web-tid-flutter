@@ -40,12 +40,15 @@ class _LoginScreenState extends State<LoginScreen> {
       _passwordController.text,
     );
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (!mounted) return;
-
     if (result['success'] == true) {
-      Navigator.pushReplacementNamed(context, AppRoutes.mainLayout);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.mainLayout,
+        (_) => false,
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/core/widgets/custom_text_field.dart';
+import 'package:apps_transporte/data/datasources/api_service.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   static const routeName = '/configuracion';
@@ -61,25 +62,25 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
     setState(() => _isLoading = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('company_domain', dominio);
-    await prefs.setString(
-      'base_url',
-      baseUrl,
-    ); // ESTO FALTABA, AHORA SÍ SE GUARDA
-
-    setState(() => _isLoading = false);
-
+    final result = await ApiService.configure(baseUrl, dominio);
     if (!mounted) return;
-
+    setState(() => _isLoading = false);
+    if (result['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'No se pudo conectar'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Configuración enlazada con éxito.'),
+        content: Text('Conexión comprobada. Inicia sesión.'),
         backgroundColor: AppColors.success,
       ),
     );
-
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
   }
 
   @override
@@ -144,7 +145,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 CustomTextField(
                   controller: _baseUrlController,
                   label: 'URL del Servidor API',
-                  hintText: 'ej: http://192.168.1.20/apis/',
+                  hintText: 'ej: http://192.168.1.20:8080/',
                   prefixIcon: const Icon(Icons.link, color: AppColors.textGrey),
                   keyboardType: TextInputType.url,
                 ),

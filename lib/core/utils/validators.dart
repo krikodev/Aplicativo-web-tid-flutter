@@ -3,7 +3,7 @@ class Validators {
     if (value == null || value.isEmpty) {
       return 'Por favor ingresa tu correo electrónico';
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     if (!emailRegex.hasMatch(value)) {
       return 'Por favor ingresa un correo electrónico válido';
     }
@@ -13,9 +13,6 @@ class Validators {
   static String? validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Por favor ingresa tu contraseña';
-    }
-    if (value.length < 6) {
-      return 'La contraseña debe tener al menos 6 caracteres';
     }
     return null;
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
-import 'evidencia_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -46,6 +45,7 @@ class HomeScreenState extends State<HomeScreen> {
 
     final result = await ApiService.getEncomiendasPorDni(dni);
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (result['success'] == true) {
@@ -63,19 +63,13 @@ class HomeScreenState extends State<HomeScreen> {
   Future<void> continuarEntrega() async {
     if (_trackingsSeleccionados.isEmpty) return;
 
-    final resultadoEntrega = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            EvidenciaScreen(trackings: _trackingsSeleccionados.toList()),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Conexión de solo consulta. Registra la entrega en el sistema general.',
+        ),
       ),
     );
-
-    if (resultadoEntrega == true) {
-      _trackingsSeleccionados.clear();
-      if (widget.onSelectionChanged != null) widget.onSelectionChanged!(0);
-      _buscarPorDni();
-    }
   }
 
   @override
@@ -260,10 +254,11 @@ class HomeScreenState extends State<HomeScreen> {
                           isSelected: isSelected,
                           onTap: () {
                             setState(() {
-                              if (isSelected)
+                              if (isSelected) {
                                 _trackingsSeleccionados.remove(trackingStr);
-                              else
+                              } else {
                                 _trackingsSeleccionados.add(trackingStr);
+                              }
                             });
                             // Le avisamos al menú cuántos hay seleccionados
                             if (widget.onSelectionChanged != null) {
