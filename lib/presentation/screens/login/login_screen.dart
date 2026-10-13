@@ -6,6 +6,7 @@ import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/core/widgets/custom_text_field.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
 import 'package:apps_transporte/presentation/routes/app_routes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -30,30 +31,70 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    final result = await ApiService.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    try {
+      // NUEVO: llamar al servicio de autenticación.
+      final result = await ApiService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-    setState(() => _isLoading = false);
+      if (!mounted) return;
 
-    if (!mounted) return;
+      if (result['success'] == true) {
+        // NUEVO: obtener los datos del usuario.
+        final user = result['user'];
 
-    if (result['success'] == true) {
-      Navigator.pushReplacementNamed(context, AppRoutes.mainLayout);
-    } else {
+        if (user == null || user['id_usuario'] == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('El servidor no devolvió el ID del usuario.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          return;
+        }
+
+        // NUEVO: guardar el ID para registrar entregas y cobros.
+        final prefs = await SharedPreferences.getInstance();
+
+        await prefs.setString('id_usuario', user['id_usuario'].toString());
+
+        // NUEVO: guardar el terminal, si viene en la respuesta.
+        if (user['id_terminal'] != null) {
+          await prefs.setString('id_terminal', user['id_terminal'].toString());
+        }
+
+        if (!mounted) return;
+
+        Navigator.pushReplacementNamed(context, AppRoutes.mainLayout);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Error de credenciales'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message'] ?? 'Error de credenciales'),
+          content: Text('Error al iniciar sesión: $e'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

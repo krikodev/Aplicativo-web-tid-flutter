@@ -12,12 +12,16 @@ class EvidenciaScreen extends StatefulWidget {
   final List<String> trackings;
   final double montoCobrado;
   final bool requiereFirma;
+  final double descuento;
+  final int? idMedioPago;
 
   const EvidenciaScreen({
     super.key,
     required this.trackings,
     required this.montoCobrado,
     required this.requiereFirma,
+    this.descuento = 0.0,
+    this.idMedioPago,
   });
 
   @override
@@ -77,6 +81,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
 
   void _eliminarFoto(int index) => setState(() => _fotos.removeAt(index));
 
+  // MODIFICADO: finalizar entrega con fotos y firma separadas.
   Future<void> _finalizarEntrega() async {
     if (_fotos.length != fotosRequeridas) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -88,7 +93,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
       return;
     }
 
-    // Validamos que el cliente haya dibujado la firma
+    // MODIFICADO: validar la firma solo cuando sea obligatoria.
     if (widget.requiereFirma && _firmaController.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -103,27 +108,33 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
 
     setState(() => _isUploading = true);
 
-    List<XFile> fotosFinales = List.from(_fotos);
+    XFile? archivoFirma;
 
-    // Guardamos la firma dibujada en la pantalla como una imagen
+    // MODIFICADO: crear un archivo independiente para la firma.
     if (widget.requiereFirma) {
       try {
         final Uint8List? firmaBytes = await _firmaController.toPngBytes();
-        if (firmaBytes != null) {
-          final tempDir = await getTemporaryDirectory();
-          final file = await File(
-            '${tempDir.path}/firma_${DateTime.now().millisecondsSinceEpoch}.png',
-          ).create();
-          file.writeAsBytesSync(firmaBytes);
-          fotosFinales.add(
-            XFile(file.path),
-          ); // Se añade la firma al paquete de fotos
+
+        if (firmaBytes == null || firmaBytes.isEmpty) {
+          throw Exception('No se pudo generar la imagen de la firma.');
         }
+
+        final tempDir = await getTemporaryDirectory();
+        final archivo = await File(
+          '${tempDir.path}/firma_${DateTime.now().millisecondsSinceEpoch}.png',
+        ).create();
+
+        await archivo.writeAsBytes(firmaBytes);
+
+        archivoFirma = XFile(archivo.path);
       } catch (e) {
+        if (!mounted) return;
+
         setState(() => _isUploading = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Error interno. Por favor reinicia la aplicación.'),
+            content: Text('No se pudo guardar la firma. Inténtalo nuevamente.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -131,27 +142,52 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
       }
     }
 
-    final result = await ApiService.registrarEntregaLote(
-      trackings: widget.trackings,
-      fotos: fotosFinales,
-      montoCobrado: widget.montoCobrado,
-    );
+    // MODIFICADO: fotos contiene únicamente fotografías de evidencia.
+    // NUEVO: la firma se envía por el parámetro firma.
+    try {
+      // MODIFICADO: enviar los datos reales recibidos desde CobroScreen.
+      final result = await ApiService.registrarEntregaLote(
+        trackings: widget.trackings,
+        fotos: List<XFile>.from(_fotos),
+        firma: archivoFirma,
+        montoCobrado: widget.montoCobrado,
+        descuento: widget.descuento,
 
-    setState(() => _isUploading = false);
-    if (!mounted) return;
+        // NUEVO: enviar el medio seleccionado en DETALLE COBRO.
+        idMedioPago: widget.idMedioPago,
+      );
 
-    if (result['success'] == true) {
+      if (!mounted) return;
+
+      setState(() => _isUploading = false);
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Entregas registradas con éxito!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['error'] ?? 'Error desconocido al registrar la entrega.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _isUploading = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Entregas registradas con éxito!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['error'] ?? 'Error desconocido'),
+          content: Text('Ocurrió un error al procesar la entrega.'),
           backgroundColor: AppColors.error,
         ),
       );

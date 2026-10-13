@@ -16,6 +16,8 @@ class _CobroScreenState extends State<CobroScreen> {
   bool _isLoading = true;
   double _deudaTotal = 0.0;
   double _descuento = 0.0;
+  bool _requiereCobro = false;
+  int? _idMedioPago;
   List<dynamic> _detalles = [];
   final TextEditingController _descuentoCtrl = TextEditingController();
 
@@ -27,42 +29,78 @@ class _CobroScreenState extends State<CobroScreen> {
 
   Future<void> _cargarDeuda() async {
     final result = await ApiService.obtenerDeuda(widget.trackings);
+
     if (!mounted) return;
 
     if (result['success'] == true) {
       setState(() {
-        _deudaTotal = (result['deuda_total'] as num).toDouble();
-        _detalles = result['detalles'];
+        // MODIFICADO: leer los datos del nuevo formato PHP.
+        _deudaTotal = ((result['deuda_total'] ?? 0) as num).toDouble();
+
+        _requiereCobro = result['requiere_cobro'] == true;
+
+        _detalles = result['detalles'] is List
+            ? result['detalles'] as List
+            : [];
+
         _isLoading = false;
       });
 
-      // SI LA DEUDA ES 0 (YA ESTÁ PAGADO), SALTAMOS A EVIDENCIAS Y EXIGIMOS FIRMA
-      if (_deudaTotal == 0) {
+      // MODIFICADO: si no requiere cobro, pasar directamente a evidencias.
+      if (!_requiereCobro || _deudaTotal <= 0) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => EvidenciaScreen(
               trackings: widget.trackings,
               montoCobrado: 0.0,
-              requiereFirma: true, // <-- EXIGIMOS FIRMA
+              requiereFirma: true,
             ),
           ),
         );
       }
     } else {
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result['error'] ?? 'Error al obtener deuda'),
           backgroundColor: AppColors.error,
         ),
       );
+
       Navigator.pop(context);
     }
   }
 
+  // MODIFICADO: validar descuento y medio de pago.
   void _irATomarFotos() {
-    double totalACobrar = _deudaTotal - _descuento;
-    if (totalACobrar < 0) totalACobrar = 0;
+    if (_descuento < 0) {
+      _mostrarError('El descuento no puede ser negativo.');
+      return;
+    }
+
+    if (_descuento > 0 && _descuento >= _deudaTotal) {
+      _mostrarError('El descuento debe ser menor al total de la encomienda.');
+      return;
+    }
+
+    // NUEVO: exigir medio de pago cuando hay un cobro.
+    if (_idMedioPago == null) {
+      _mostrarError('Selecciona el medio de pago utilizado.');
+      return;
+    }
+
+    final totalACobrar = double.parse(
+      (_deudaTotal - _descuento).toStringAsFixed(2),
+    );
+
+    if (totalACobrar <= 0) {
+      _mostrarError('El importe a cobrar debe ser mayor que cero.');
+      return;
+    }
 
     Navigator.pushReplacement(
       context,
@@ -70,8 +108,79 @@ class _CobroScreenState extends State<CobroScreen> {
         builder: (_) => EvidenciaScreen(
           trackings: widget.trackings,
           montoCobrado: totalACobrar,
-          requiereFirma:
-              false, // <-- COMO HUBO DEUDA, NO EXIGIMOS FIRMA (Por ahora)
+          requiereFirma: true,
+
+          // NUEVO: pasar los datos para completar el registro.
+          descuento: _descuento,
+          idMedioPago: _idMedioPago!,
+        ),
+      ),
+    );
+  }
+
+  // NUEVO: mostrar errores de validación.
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.error),
+    );
+  }
+
+  // NUEVO: liberar el controlador.
+  @override
+  void dispose() {
+    _descuentoCtrl.dispose();
+    super.dispose();
+  }
+
+  // NUEVO: componente reutilizable para seleccionar medio de pago.
+  Widget _buildMedioPago({
+    required int id,
+    required String nombre,
+    required IconData icono,
+  }) {
+    final bool seleccionado = _idMedioPago == id;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _idMedioPago = id;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        decoration: BoxDecoration(
+          color: seleccionado
+              ? AppColors.accent.withOpacity(0.12)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: seleccionado
+                ? AppColors.accent
+                : Colors.grey.withOpacity(0.3),
+            width: seleccionado ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icono, color: AppColors.accent, size: 26),
+            const SizedBox(height: 8),
+            Text(
+              nombre,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: seleccionado ? AppColors.accent : AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Icon(
+              seleccionado ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 18,
+              color: seleccionado ? AppColors.accent : AppColors.textGrey,
+            ),
+          ],
         ),
       ),
     );
@@ -118,9 +227,6 @@ class _CobroScreenState extends State<CobroScreen> {
                         ),
                         const SizedBox(height: 12),
                         ..._detalles.map((item) {
-                          bool requiereCobro =
-                              (item['pago'] == 'PAGO EN DESTINO' ||
-                              item['pago'] == 'CREDITO');
                           return Card(
                             elevation: 0,
                             margin: const EdgeInsets.only(bottom: 8),
@@ -129,24 +235,21 @@ class _CobroScreenState extends State<CobroScreen> {
                             ),
                             child: ListTile(
                               title: Text(
-                                item['descripcion'] ?? 'Producto',
+                                'Encomienda ${item['codigo'] ?? widget.trackings.first}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               subtitle: Text(
-                                "Tracking: ${item['codigo']}\nEstado: ${item['pago']}",
+                                'Venta: ${item['id_venta'] ?? '-'}\n'
+                                'Estado: ${item['estado_venta'] ?? '-'}',
                               ),
                               trailing: Text(
-                                requiereCobro
-                                    ? "S/ ${item['op_total']}"
-                                    : "PAGADO",
-                                style: TextStyle(
+                                'S/ ${((item['total_bruto'] ?? 0) as num).toStringAsFixed(2)}',
+                                style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: requiereCobro
-                                      ? AppColors.error
-                                      : AppColors.success,
+                                  color: AppColors.error,
                                 ),
                               ),
                             ),
@@ -218,6 +321,46 @@ class _CobroScreenState extends State<CobroScreen> {
                                     _descuento = double.tryParse(value) ?? 0.0;
                                   });
                                 },
+                              ),
+                              // NUEVO: selector del medio de pago.
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Medio de pago:',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textGrey,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // NUEVO: opciones EFECTIVO, YAPE y PLIN.
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildMedioPago(
+                                      id: 1,
+                                      nombre: 'EFECTIVO',
+                                      icono: Icons.payments_outlined,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildMedioPago(
+                                      id: 2,
+                                      nombre: 'YAPE',
+                                      icono: Icons.smartphone,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildMedioPago(
+                                      id: 3,
+                                      nombre: 'PLIN',
+                                      icono: Icons.phone_android,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

@@ -98,7 +98,6 @@ class _MainLayoutState extends State<MainLayout> {
 
               // EL BOTÓN CAMALEÓN
               _buildIntelligentCenterButton(),
-
               Expanded(
                 child: _buildNavItem(
                   icon: Icons.history_outlined,
@@ -107,14 +106,14 @@ class _MainLayoutState extends State<MainLayout> {
                   index: 2,
                 ),
               ),
-              Expanded(
-                child: _buildNavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: 'Perfil',
-                  index: 3,
-                ),
-              ),
+              // Expanded(
+              //   child: _buildNavItem(
+              //     icon: Icons.person_outline,
+              //     activeIcon: Icons.person,
+              //     label: 'Perfil',
+              //     index: 3,
+              //   ),
+              // ),
             ],
           ),
         ),

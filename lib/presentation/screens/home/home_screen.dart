@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
-import 'cobro_screen.dart'; // <-- AHORA IMPORTAMOS LA PANTALLA DE COBRO
+import 'cobro_screen.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -16,43 +17,67 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   final _dniController = TextEditingController();
   bool _isLoading = false;
+  Timer? _temporizadorBusqueda;
+  int _versionBusqueda = 0;
   List<dynamic> _encomiendas = [];
   final Set<String> _trackingsSeleccionados = {};
 
   @override
   void dispose() {
+    _temporizadorBusqueda?.cancel();
     _dniController.dispose();
     super.dispose();
   }
 
-  Future<void> _buscarPorDni() async {
-    final dni = _dniController.text.trim();
-    if (dni.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, ingresa un DNI')),
-      );
+  // MODIFICADO: buscar por DNI o tracking.
+  Future<void> _buscarPorDni({String? consulta}) async {
+    final termino = (consulta ?? _dniController.text).trim();
+
+    if (termino.length < 3) {
+      setState(() {
+        _encomiendas = [];
+        _trackingsSeleccionados.clear();
+        _isLoading = false;
+      });
+
+      widget.onSelectionChanged?.call(0);
       return;
     }
 
+    final versionActual = ++_versionBusqueda;
+
     setState(() {
       _isLoading = true;
-      _encomiendas = [];
-      _trackingsSeleccionados.clear();
     });
-    if (widget.onSelectionChanged != null) widget.onSelectionChanged!(0);
 
-    final result = await ApiService.getEncomiendasPorDni(dni);
+    try {
+      // El endpoint actual recibe el término en el parámetro dni.
+      // MODIFICADO: el término puede ser DNI o tracking.
+      final result = await ApiService.getEncomiendasPorDni(termino);
 
-    setState(() => _isLoading = false);
+      // NUEVO: ignorar respuestas de búsquedas anteriores.
+      if (!mounted || versionActual != _versionBusqueda) return;
 
-    if (result['success'] == true) {
       setState(() {
-        _encomiendas = result['data'] ?? [];
+        _isLoading = false;
+        _encomiendas = result['success'] == true ? result['data'] ?? [] : [];
       });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Error al buscar')),
-      );
+
+      if (result['success'] != true && result['message'] != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result['message'])));
+      }
+
+      _trackingsSeleccionados.clear();
+      widget.onSelectionChanged?.call(0);
+    } catch (e) {
+      if (!mounted || versionActual != _versionBusqueda) return;
+
+      setState(() {
+        _isLoading = false;
+        _encomiendas = [];
+      });
     }
   }
 
@@ -167,17 +192,42 @@ class HomeScreenState extends State<HomeScreen> {
                     const Icon(Icons.search, color: AppColors.textGrey),
                     const SizedBox(width: 12),
                     Expanded(
+                      // MODIFICADO
                       child: TextField(
                         controller: _dniController,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          hintText: 'Ingresar DNI...',
+                          hintText: 'Ingresar DNI o tracking...',
                           hintStyle: TextStyle(
                             color: AppColors.textGrey,
                             fontSize: 14,
                           ),
                           border: InputBorder.none,
                         ),
+
+                        // NUEVO: búsqueda automática desde el tercer dígito.
+                        onChanged: (valor) {
+                          _temporizadorBusqueda?.cancel();
+
+                          if (valor.trim().length < 3) {
+                            _versionBusqueda++;
+
+                            setState(() {
+                              _encomiendas = [];
+                              _isLoading = false;
+                            });
+
+                            _trackingsSeleccionados.clear();
+                            widget.onSelectionChanged?.call(0);
+                            return;
+                          }
+
+                          _temporizadorBusqueda = Timer(
+                            const Duration(milliseconds: 300),
+                            () => _buscarPorDni(consulta: valor),
+                          );
+                        },
+
                         onSubmitted: (_) => _buscarPorDni(),
                       ),
                     ),
