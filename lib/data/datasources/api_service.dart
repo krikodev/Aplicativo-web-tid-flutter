@@ -7,7 +7,6 @@ class ApiService {
   static const String _cloudName = 'di5gmllfj';
   static const String _uploadPreset = 'transporta_evidencias';
 
-  // 👇 1. NUEVA FUNCIÓN: Lee la IP o URL que escribiste en la pantalla de configuración
   static Future<String> _getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     String baseUrl = prefs.getString('base_url') ?? "";
@@ -17,7 +16,6 @@ class ApiService {
     return baseUrl;
   }
 
-  // 2. EXTRAER EL DOMINIO DE LA MEMORIA
   static Future<String> _getCompanyDomain() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('company_domain') ?? "";
@@ -29,8 +27,9 @@ class ApiService {
     String password,
   ) async {
     final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty)
+    if (baseUrl.isEmpty) {
       return {'success': false, 'message': 'Servidor no configurado en la app'};
+    }
 
     final url = Uri.parse("${baseUrl}login_usuario.php");
     final domain = await _getCompanyDomain();
@@ -58,8 +57,9 @@ class ApiService {
   // --- OBTENER ENCOMIENDAS POR DNI ---
   static Future<Map<String, dynamic>> getEncomiendasPorDni(String dni) async {
     final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty)
+    if (baseUrl.isEmpty) {
       return {'success': false, 'message': 'Servidor no configurado'};
+    }
 
     final url = Uri.parse("${baseUrl}get_encomiendas_dni.php");
     final domain = await _getCompanyDomain();
@@ -108,10 +108,11 @@ class ApiService {
     return null;
   }
 
-  // --- REGISTRAR ENTREGA LOTE ---
+  // --- REGISTRAR ENTREGA Y COBRO (ACTUALIZADO) ---
   static Future<Map<String, dynamic>> registrarEntregaLote({
     required List<String> trackings,
     required List<XFile> fotos,
+    required double montoCobrado,
   }) async {
     List<String> urlsFotos = [];
 
@@ -119,6 +120,7 @@ class ApiService {
       return {"success": false, "error": "Debes tomar al menos una foto."};
     }
 
+    // 1. Subir fotos a Cloudinary
     for (var foto in fotos) {
       String? url = await _subirFotoCloudinary(foto);
       if (url != null) {
@@ -129,11 +131,22 @@ class ApiService {
     }
 
     final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty)
+    if (baseUrl.isEmpty) {
       return {'success': false, 'error': 'Servidor no configurado'};
+    }
 
-    final url = Uri.parse("${baseUrl}entregar_encomiendas.php");
+    // 2. Obtener datos de memoria (Dominio y ID de Usuario)
+    final prefs = await SharedPreferences.getInstance();
     final domain = await _getCompanyDomain();
+
+    // Asumimos que guardaste el id_usuario en el login. Si no, usamos '1' por defecto para pruebas.
+    final idUsuario =
+        prefs.getString('id_usuario') ??
+        prefs.getInt('id_usuario')?.toString() ??
+        '1';
+
+    // 3. Apuntar al NUEVO archivo PHP
+    final url = Uri.parse("${baseUrl}api_procesar_entrega_cobro.php");
 
     try {
       final response = await http.post(
@@ -141,7 +154,11 @@ class ApiService {
         headers: {'X-Company-Domain': domain},
         body: {
           'trackings': jsonEncode(trackings),
-          'urls_fotos': jsonEncode(urlsFotos),
+          'urls_fotos': urlsFotos.join(
+            ',',
+          ), // Las unimos con comas para la base de datos
+          'monto_cobrado': montoCobrado.toString(),
+          'id_usuario': idUsuario,
         },
       );
       return json.decode(response.body);
@@ -156,8 +173,9 @@ class ApiService {
     required String fecha,
   }) async {
     final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty)
+    if (baseUrl.isEmpty) {
       return {'success': false, 'message': 'Servidor no configurado'};
+    }
 
     final url = Uri.parse("${baseUrl}get_historial.php");
     final domain = await _getCompanyDomain();
@@ -182,6 +200,40 @@ class ApiService {
       }
     } catch (e) {
       return {"success": false, "message": "Error de conexión: $e"};
+    }
+  }
+
+  // --- OBTENER DEUDA ---
+  static Future<Map<String, dynamic>> obtenerDeuda(
+    List<String> trackings,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final baseUrl = prefs.getString('base_url') ?? '';
+      final domain = prefs.getString('company_domain') ?? '';
+
+      final urlStr = baseUrl.endsWith('/')
+          ? '${baseUrl}api_obtener_deuda.php'
+          : '$baseUrl/api_obtener_deuda.php';
+
+      final response = await http.post(
+        Uri.parse(urlStr),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Company-Domain': domain,
+        },
+        body: jsonEncode({'trackings': trackings}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {
+        'success': false,
+        'error': 'Error en el servidor al consultar la deuda',
+      };
+    } catch (e) {
+      return {'success': false, 'error': 'Error de conexión: $e'};
     }
   }
 }

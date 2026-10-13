@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
-import 'evidencia_screen.dart';
+import 'cobro_screen.dart'; // <-- AHORA IMPORTAMOS LA PANTALLA DE COBRO
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
-  // NUEVO: Canal de comunicación con la barra inferior
   final void Function(int)? onSelectionChanged;
 
   const HomeScreen({super.key, this.onSelectionChanged});
 
   @override
-  // NUEVO: Hacemos la clase pública quitando el "_" al inicio
   State<HomeScreen> createState() => HomeScreenState();
 }
 
-// Clase pública para que el MainLayout la pueda ejecutar
 class HomeScreenState extends State<HomeScreen> {
   final _dniController = TextEditingController();
   bool _isLoading = false;
@@ -59,15 +56,15 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // NUEVO: Esta función ahora la llamará el botón central
   Future<void> continuarEntrega() async {
     if (_trackingsSeleccionados.isEmpty) return;
 
+    // <-- AHORA LLAMA A COBROSCREEN, NO A EVIDENCIAS
     final resultadoEntrega = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
-            EvidenciaScreen(trackings: _trackingsSeleccionados.toList()),
+            CobroScreen(trackings: _trackingsSeleccionados.toList()),
       ),
     );
 
@@ -87,7 +84,6 @@ class HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- CABECERA ---
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
               child: Row(
@@ -145,8 +141,6 @@ class HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            // --- BUSCADOR ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Container(
@@ -228,8 +222,6 @@ class HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // --- LISTA ---
             Expanded(
               child: _encomiendas.isEmpty
                   ? const Center(
@@ -260,12 +252,12 @@ class HomeScreenState extends State<HomeScreen> {
                           isSelected: isSelected,
                           onTap: () {
                             setState(() {
-                              if (isSelected)
+                              if (isSelected) {
                                 _trackingsSeleccionados.remove(trackingStr);
-                              else
+                              } else {
                                 _trackingsSeleccionados.add(trackingStr);
+                              }
                             });
-                            // Le avisamos al menú cuántos hay seleccionados
                             if (widget.onSelectionChanged != null) {
                               widget.onSelectionChanged!(
                                 _trackingsSeleccionados.length,

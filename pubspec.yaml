@@ -22,7 +22,7 @@ dependencies:
   url_launcher: ^6.2.1    # Crucial para abrir enlaces de Cloudinary
   
   # Archivos y Rutas
-  path_provider: ^2.1.5
+  path_provider: ^2.1.6
   path: ^1.9.1
   
   # Gráficos (Para el Home Screen)
@@ -30,6 +30,7 @@ dependencies:
   
   # Captura de fotos (Para la pantalla de entrega)
   image_picker: ^1.1.2
+  signature: ^6.4.0
 
 dev_dependencies:
   flutter_test:

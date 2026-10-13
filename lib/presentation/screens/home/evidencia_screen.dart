@@ -1,32 +1,51 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:signature/signature.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
 
 class EvidenciaScreen extends StatefulWidget {
   final List<String> trackings;
+  final double montoCobrado;
+  final bool requiereFirma;
 
-  const EvidenciaScreen({super.key, required this.trackings});
+  const EvidenciaScreen({
+    super.key,
+    required this.trackings,
+    required this.montoCobrado,
+    required this.requiereFirma,
+  });
 
   @override
   State<EvidenciaScreen> createState() => _EvidenciaScreenState();
 }
 
 class _EvidenciaScreenState extends State<EvidenciaScreen> {
-  // ==========================================
-  // LÓGICA INTACTA (0% CAMBIOS AQUÍ)
-  // ==========================================
   final ImagePicker _picker = ImagePicker();
   final List<XFile> _fotos = [];
   bool _isUploading = false;
 
+  // Controlador de la firma (Líneas más gruesas y suaves)
+  final SignatureController _firmaController = SignatureController(
+    penStrokeWidth: 4,
+    penColor: AppColors.textDark,
+    exportBackgroundColor: Colors.white,
+  );
+
   int get fotosRequeridas => widget.trackings.length * 2;
+
+  @override
+  void dispose() {
+    _firmaController.dispose();
+    super.dispose();
+  }
 
   Future<void> _obtenerFoto(ImageSource source) async {
     final int faltantes = fotosRequeridas - _fotos.length;
-
     if (faltantes <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -36,48 +55,45 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
       );
       return;
     }
-
     try {
       if (source == ImageSource.gallery) {
-        final List<XFile> seleccionadas = await _picker.pickMultiImage(
+        final seleccionadas = await _picker.pickMultiImage(
           limit: faltantes,
           imageQuality: 80,
         );
-
-        if (seleccionadas.isNotEmpty) {
-          setState(() {
-            _fotos.addAll(seleccionadas);
-          });
-        }
+        if (seleccionadas.isNotEmpty)
+          setState(() => _fotos.addAll(seleccionadas));
       } else {
-        final XFile? foto = await _picker.pickImage(
+        final foto = await _picker.pickImage(
           source: ImageSource.camera,
           imageQuality: 80,
         );
-
-        if (foto != null) {
-          setState(() {
-            _fotos.add(foto);
-          });
-        }
+        if (foto != null) setState(() => _fotos.add(foto));
       }
     } catch (e) {
-      print("Error al obtener foto: $e");
+      print("Error foto: $e");
     }
   }
 
-  void _eliminarFoto(int index) {
-    setState(() {
-      _fotos.removeAt(index);
-    });
-  }
+  void _eliminarFoto(int index) => setState(() => _fotos.removeAt(index));
 
   Future<void> _finalizarEntrega() async {
     if (_fotos.length != fotosRequeridas) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          content: Text('Faltan fotos. Necesitas $fotosRequeridas.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Validamos que el cliente haya dibujado la firma
+    if (widget.requiereFirma && _firmaController.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           content: Text(
-            'Faltan fotos. Necesitas $fotosRequeridas fotos en total.',
+            'El cliente debe escribir su firma en el recuadro blanco.',
           ),
           backgroundColor: AppColors.error,
         ),
@@ -87,19 +103,47 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
 
     setState(() => _isUploading = true);
 
+    List<XFile> fotosFinales = List.from(_fotos);
+
+    // Guardamos la firma dibujada en la pantalla como una imagen
+    if (widget.requiereFirma) {
+      try {
+        final Uint8List? firmaBytes = await _firmaController.toPngBytes();
+        if (firmaBytes != null) {
+          final tempDir = await getTemporaryDirectory();
+          final file = await File(
+            '${tempDir.path}/firma_${DateTime.now().millisecondsSinceEpoch}.png',
+          ).create();
+          file.writeAsBytesSync(firmaBytes);
+          fotosFinales.add(
+            XFile(file.path),
+          ); // Se añade la firma al paquete de fotos
+        }
+      } catch (e) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error interno. Por favor reinicia la aplicación.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+
     final result = await ApiService.registrarEntregaLote(
       trackings: widget.trackings,
-      fotos: _fotos,
+      fotos: fotosFinales,
+      montoCobrado: widget.montoCobrado,
     );
 
     setState(() => _isUploading = false);
-
     if (!mounted) return;
 
     if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Entregas registradas y subidas con éxito!'),
+          content: Text('¡Entregas registradas con éxito!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -107,27 +151,20 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            result['error'] ?? result['message'] ?? 'Error desconocido',
-          ),
+          content: Text(result['error'] ?? 'Error desconocido'),
           backgroundColor: AppColors.error,
         ),
       );
     }
   }
 
-  // ==========================================
-  // DISEÑO UI (UX/UI BASADO EN REFERENCIA)
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     final int faltantes = fotosRequeridas - _fotos.length;
     final bool isComplete = faltantes == 0;
 
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF8F9FA,
-      ), // Fondo extra claro coherente con Home
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
           "Evidencias de Entrega",
@@ -145,125 +182,130 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // --- TARJETA DE ESTADO SUPERIOR ---
-            Container(
-              margin: const EdgeInsets.all(24),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
+            Expanded(
+              // Cambiamos a ListView para que puedas scrollear hacia la firma
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Progreso de Fotos",
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "${_fotos.length} de $fotosRequeridas capturadas",
-                            style: const TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isComplete
-                              ? AppColors.success.withOpacity(0.1)
-                              : AppColors.accent.withOpacity(0.1),
-                          shape: BoxShape.circle,
+                  // --- TARJETA DE ESTADO ---
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                        child: Icon(
-                          isComplete ? Icons.check_circle : Icons.camera_alt,
-                          color: isComplete
-                              ? AppColors.success
-                              : AppColors.accent,
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Progreso de Fotos",
+                                  style: TextStyle(
+                                    color: AppColors.textGrey,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "${_fotos.length} de $fotosRequeridas capturadas",
+                                  style: const TextStyle(
+                                    color: AppColors.textDark,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isComplete
+                                    ? AppColors.success.withOpacity(0.1)
+                                    : AppColors.accent.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isComplete
+                                    ? Icons.check_circle
+                                    : Icons.camera_alt,
+                                color: isComplete
+                                    ? AppColors.success
+                                    : AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: fotosRequeridas > 0
+                                ? _fotos.length / fotosRequeridas
+                                : 0,
+                            backgroundColor: AppColors.softBackground,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isComplete ? AppColors.success : AppColors.accent,
+                            ),
+                            minHeight: 8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- BOTONES DE CÁMARA/GALERÍA ---
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildActionButton(
+                          icon: Icons.camera_alt_outlined,
+                          label: "Cámara",
+                          color: AppColors.accent,
+                          onTap: faltantes > 0
+                              ? () => _obtenerFoto(ImageSource.camera)
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildActionButton(
+                          icon: Icons.photo_library_outlined,
+                          label: "Galería",
+                          color: const Color(0xFF1E1E1E),
+                          onTap: faltantes > 0
+                              ? () => _obtenerFoto(ImageSource.gallery)
+                              : null,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  // Barra de progreso visual
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: fotosRequeridas > 0
-                          ? _fotos.length / fotosRequeridas
-                          : 0,
-                      backgroundColor: AppColors.softBackground,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isComplete ? AppColors.success : AppColors.accent,
-                      ),
-                      minHeight: 8,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  const SizedBox(height: 24),
 
-            // --- BOTONES: CÁMARA Y GALERÍA ---
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildActionButton(
-                      icon: Icons.camera_alt_outlined,
-                      label: "Cámara",
-                      color: AppColors.accent,
-                      onTap: faltantes > 0
-                          ? () => _obtenerFoto(ImageSource.camera)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildActionButton(
-                      icon: Icons.photo_library_outlined,
-                      label: "Galería",
-                      color: const Color(0xFF1E1E1E), // Oscuro elegante
-                      onTap: faltantes > 0
-                          ? () => _obtenerFoto(ImageSource.gallery)
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // --- GRILLA DE FOTOS TOMADAS ---
-            Expanded(
-              child: _fotos.isEmpty
-                  ? Center(
+                  // --- GRILLA DE FOTOS ---
+                  if (_fotos.isEmpty)
+                    SizedBox(
+                      height: 150,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.image_search,
-                            size: 64,
+                            size: 48,
                             color: AppColors.textGrey.withOpacity(0.3),
                           ),
                           const SizedBox(height: 16),
@@ -274,28 +316,20 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            "Toma 2 fotos por paquete.",
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 13,
-                            ),
-                          ),
                         ],
                       ),
                     )
-                  : GridView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
+                  else
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics:
+                          const NeverScrollableScrollPhysics(), // Evita scroll doble
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
-                            childAspectRatio: 1, // Cuadradas
+                            childAspectRatio: 1,
                           ),
                       itemCount: _fotos.length,
                       itemBuilder: (context, index) {
@@ -321,7 +355,6 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                                 ),
                               ),
                             ),
-                            // Botón "X" para eliminar foto
                             Positioned(
                               top: 8,
                               right: 8,
@@ -345,16 +378,60 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                         );
                       },
                     ),
+
+                  // --- CUADRO DE FIRMA EN PANTALLA (SOLO SI REQUIERE) ---
+                  if (widget.requiereFirma) ...[
+                    const SizedBox(height: 32),
+                    const Text(
+                      "Firma del Cliente Requerida",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: AppColors.accent.withOpacity(0.5),
+                          width: 2,
+                        ), // Borde llamativo
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Signature(
+                          controller: _firmaController,
+                          height: 200,
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _firmaController.clear(),
+                        icon: const Icon(
+                          Icons.cleaning_services,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          "Limpiar Firma",
+                          style: TextStyle(color: AppColors.error),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
 
-            // --- BOTÓN FINAL DE SUBIDA ---
+            // --- BOTÓN DE CONFIRMAR ENTREGA ---
             Container(
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                16,
-                24,
-                32,
-              ), // Padding inferior extra para celulares sin botones
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
@@ -369,7 +446,6 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                 text: _isUploading
                     ? 'Subiendo Evidencias...'
                     : 'Confirmar Entrega',
-                // Solo se activa si las fotos están completas
                 onPressed: isComplete ? _finalizarEntrega : () {},
                 isLoading: _isUploading,
                 backgroundColor: isComplete
@@ -383,9 +459,6 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
     );
   }
 
-  // ==========================================
-  // WIDGET AUXILIAR: BOTONES DE CÁMARA/GALERÍA
-  // ==========================================
   Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -393,7 +466,6 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
     required VoidCallback? onTap,
   }) {
     final bool isEnabled = onTap != null;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
