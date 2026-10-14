@@ -1,24 +1,171 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:apps_transporte/data/datasources/api_config.dart';
 
 class ApiService {
   static const String _cloudName = 'di5gmllfj';
   static const String _uploadPreset = 'transporta_evidencias';
 
-  static Future<String> _getBaseUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    String baseUrl = prefs.getString('base_url') ?? "";
-    if (baseUrl.isNotEmpty && !baseUrl.endsWith('/')) {
-      baseUrl += '/';
+  static const _requestTimeout = Duration(seconds: 20);
+
+  static Map<String, dynamic> _failure(
+    String message, {
+    required String code,
+    int? statusCode,
+  }) => {
+    'success': false,
+    'message': message,
+    'error': message,
+    'error_code': code,
+    if (statusCode != null) 'status_code': statusCode,
+  };
+
+  static String? _serverMessage(Map<String, dynamic> data) {
+    for (final value in [data['message'], data['error']]) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
     }
-    return baseUrl;
+    return null;
   }
 
-  static Future<String> _getCompanyDomain() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('company_domain') ?? "";
+  static Map<String, dynamic> _decodeResponse(http.Response response, Uri url) {
+    final status = response.statusCode;
+    final successfulHttp = status >= 200 && status < 300;
+    Map<String, dynamic>? data;
+    try {
+      final body = utf8.decode(response.bodyBytes).trim();
+      if (body.isNotEmpty) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) data = decoded;
+      }
+    } on FormatException {
+      // Un hosting puede devolver HTML incluso cuando responde con HTTP 200.
+    }
+
+    if (!successfulHttp) {
+      final message = data == null ? null : _serverMessage(data);
+      return {
+        if (data != null) ...data,
+        ..._failure(
+          message ??
+              (status == 404
+                  ? 'No se encontró ${url.pathSegments.last} en la URL '
+                        'configurada (HTTP 404).'
+                  : 'La API respondió con HTTP $status. Revisa el servidor.'),
+          code: 'http_error',
+          statusCode: status,
+        ),
+      };
+    }
+
+    if (data == null) {
+      return _failure(
+        response.bodyBytes.isEmpty
+            ? 'La API devolvió una respuesta vacía.'
+            : 'La API no devolvió un objeto JSON válido. Revisa la ruta '
+                  'configurada y los errores de PHP en el servidor.',
+        code: 'invalid_response',
+        statusCode: status,
+      );
+    }
+    if (data['success'] == false) {
+      final message = _serverMessage(data) ?? 'La API rechazó la solicitud.';
+      return {...data, 'message': message, 'error': message};
+    }
+    return data;
+  }
+
+  static bool _isDnsError(String message) {
+    final text = message.toLowerCase();
+    return text.contains('failed host lookup') ||
+        text.contains('name or service not known') ||
+        text.contains('no address associated with hostname') ||
+        text.contains('temporary failure in name resolution');
+  }
+
+  static Map<String, dynamic> _connectionFailure(String message, Uri? url) {
+    final host = url?.host ?? 'el servidor';
+    if (_isDnsError(message)) {
+      return _failure(
+        'No se pudo resolver $host (DNS). Verifica el nombre del servidor '
+        'y prueba la URL en el navegador del celular con Wi-Fi y datos móviles.',
+        code: 'dns_error',
+      );
+    }
+    return _failure(
+      'No se pudo conectar con $host. Verifica tu conexión a Internet '
+      'y que la API esté disponible.',
+      code: 'connection_error',
+    );
+  }
+
+  static Future<Map<String, dynamic>> _post(
+    String endpoint, {
+    required Map<String, String> body,
+  }) => _sendPost(endpoint, body: body, jsonBody: false);
+
+  static Future<Map<String, dynamic>> _postJson(
+    String endpoint, {
+    required Map<String, dynamic> body,
+  }) => _sendPost(endpoint, body: body, jsonBody: true);
+
+  static Future<Map<String, dynamic>> _sendPost(
+    String endpoint, {
+    required Map<String, dynamic> body,
+    required bool jsonBody,
+  }) async {
+    Uri? url;
+    http.Client? client;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final config = ApiConfig.fromBaseUrl(prefs.getString('base_url') ?? '');
+      url = config.endpoint(endpoint);
+      client = http.Client();
+      final response = await client
+          .post(
+            url,
+            headers: {
+              ...config.headers,
+              'Content-Type': jsonBody
+                  ? 'application/json; charset=UTF-8'
+                  : 'application/x-www-form-urlencoded',
+            },
+            body: jsonBody ? jsonEncode(body) : body,
+          )
+          .timeout(_requestTimeout);
+      return _decodeResponse(response, url);
+    } on FormatException catch (e) {
+      return _failure(e.message, code: 'configuration_error');
+    } on TimeoutException {
+      final retryMessage = endpoint == 'api_procesar_entrega_cobro.php'
+          ? ' Consulta el historial antes de repetir la entrega.'
+          : '';
+      return _failure(
+        'La API no respondió en 20 segundos. Comprueba la conexión y '
+        'el servidor.$retryMessage',
+        code: 'timeout',
+      );
+    } on HandshakeException {
+      return _failure(
+        'No se pudo establecer HTTPS. Revisa el certificado SSL '
+        'del servidor y la fecha del celular.',
+        code: 'tls_error',
+      );
+    } on SocketException catch (e) {
+      return _connectionFailure(e.message, url);
+    } on http.ClientException catch (e) {
+      return _connectionFailure(e.message, url);
+    } catch (_) {
+      return _failure(
+        'No se pudo completar la solicitud a la API.',
+        code: 'request_error',
+      );
+    } finally {
+      client?.close();
+    }
   }
 
   // --- LOGIN ---
@@ -26,103 +173,35 @@ class ApiService {
     String email,
     String password,
   ) async {
-    final baseUrl = await _getBaseUrl();
+    final decoded = await _post(
+      'login_usuario.php',
+      body: {'email': email.trim(), 'pass': password},
+    );
+    if (decoded['success'] != true) return decoded;
 
-    if (baseUrl.isEmpty) {
-      return {'success': false, 'message': 'Servidor no configurado en la app'};
-    }
-
-    final url = Uri.parse("${baseUrl}login_usuario.php");
-    final domain = await _getCompanyDomain();
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-Company-Domain': domain,
-        },
-        body: {'email': email.trim(), 'pass': password},
+    final user = decoded['user'];
+    if (user is! Map<String, dynamic> ||
+        user['id_usuario'] == null ||
+        user['id_usuario'].toString().trim().isEmpty) {
+      return _failure(
+        'El servidor no devolvió el ID del usuario.',
+        code: 'invalid_user',
       );
-
-      if (response.body.trim().isEmpty) {
-        return {'success': false, 'message': 'Respuesta vacía del servidor'};
-      }
-
-      final decoded = jsonDecode(response.body);
-
-      if (decoded is! Map<String, dynamic>) {
-        return {
-          'success': false,
-          'message': 'Respuesta inesperada del servidor',
-        };
-      }
-
-      // NUEVO: guardar el ID cuando el login sea correcto.
-      if (decoded['success'] == true) {
-        final user = decoded['user'];
-
-        if (user is! Map<String, dynamic> ||
-            user['id_usuario'] == null ||
-            user['id_usuario'].toString().trim().isEmpty) {
-          return {
-            'success': false,
-            'message': 'El servidor no devolvió el ID del usuario',
-          };
-        }
-
-        final prefs = await SharedPreferences.getInstance();
-
-        await prefs.setString('id_usuario', user['id_usuario'].toString());
-
-        // NUEVO: guardar otros datos útiles de la sesión.
-        if (user['id_terminal'] != null) {
-          await prefs.setString('id_terminal', user['id_terminal'].toString());
-        }
-      }
-
-      return decoded;
-    } on FormatException {
-      return {
-        'success': false,
-        'message': 'El servidor devolvió una respuesta no válida',
-      };
-    } catch (e) {
-      return {'success': false, 'message': 'Error de conexión: $e'};
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('id_usuario', user['id_usuario'].toString());
+    if (user['id_terminal'] != null) {
+      await prefs.setString('id_terminal', user['id_terminal'].toString());
+    } else {
+      await prefs.remove('id_terminal');
+    }
+    return decoded;
   }
 
   // --- OBTENER ENCOMIENDAS POR DNI ---
   static Future<Map<String, dynamic>> getEncomiendasPorDni(String dni) async {
-    final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty) {
-      return {'success': false, 'message': 'Servidor no configurado'};
-    }
-
-    final url = Uri.parse("${baseUrl}get_encomiendas_dni.php");
-    final domain = await _getCompanyDomain();
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          'X-Company-Domain': domain,
-        },
-        body: jsonEncode({"dni": dni.trim()}),
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        return {
-          "success": false,
-          "message": "Error ${response.statusCode} en el servidor",
-        };
-      }
-    } catch (e) {
-      return {"success": false, "message": "Error de conexión: $e"};
-    }
+    return _postJson('get_encomiendas_dni.php', body: {'dni': dni.trim()});
   }
 
   // --- SUBIR FOTO A CLOUDINARY ---
@@ -140,8 +219,8 @@ class ApiService {
         var responseData = await response.stream.bytesToString();
         return jsonDecode(responseData)['secure_url'];
       }
-    } catch (e) {
-      print("Error subiendo a Cloudinary: $e");
+    } catch (_) {
+      return null;
     }
     return null;
   }
@@ -184,18 +263,15 @@ class ApiService {
       };
     }
 
-    final baseUrl = await _getBaseUrl();
-
-    if (baseUrl.isEmpty) {
-      return {'success': false, 'error': 'Servidor no configurado.'};
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      ApiConfig.fromBaseUrl(prefs.getString('base_url') ?? '');
+    } on FormatException catch (e) {
+      return _failure(e.message, code: 'configuration_error');
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final domain = await _getCompanyDomain();
-
     // MODIFICADO: no usar un usuario predeterminado.
-    final idUsuario =
-        prefs.getString('id_usuario') ?? prefs.getInt('id_usuario')?.toString();
+    final idUsuario = prefs.get('id_usuario')?.toString();
 
     if (idUsuario == null || idUsuario.trim().isEmpty) {
       return {
@@ -235,60 +311,18 @@ class ApiService {
       }
     }
 
-    final url = Uri.parse('${baseUrl}api_procesar_entrega_cobro.php');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'X-Company-Domain': domain},
-        body: {
-          'trackings': jsonEncode(trackings),
-          'urls_fotos': jsonEncode(urlsFotos),
-          'url_firma': urlFirma ?? '',
-          'monto_cobrado': montoCobrado.toStringAsFixed(2),
-          'descuento': descuento.toStringAsFixed(2),
-          'id_usuario': idUsuario,
-          'id_medio_pago': idMedioPago?.toString() ?? '',
-        },
-      );
-
-      // NUEVO: comprobar que la respuesta sea JSON válido.
-      if (response.body.trim().isEmpty) {
-        return {
-          'success': false,
-          'error': 'El servidor devolvió una respuesta vacía.',
-        };
-      }
-
-      // MODIFICADO: validar respuesta JSON y estado HTTP.
-      final decoded = jsonDecode(response.body);
-
-      if (decoded is Map<String, dynamic>) {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          return decoded;
-        }
-
-        return {
-          ...decoded,
-          'success': false,
-          'error':
-              decoded['error'] ??
-              decoded['message'] ??
-              'Error HTTP ${response.statusCode}.',
-        };
-      }
-      return {
-        'success': false,
-        'error': 'La respuesta del servidor tiene un formato inesperado.',
-      };
-    } on FormatException {
-      return {
-        'success': false,
-        'error': 'El servidor devolvió una respuesta no válida.',
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Error de conexión: $e'};
-    }
+    return _post(
+      'api_procesar_entrega_cobro.php',
+      body: {
+        'trackings': jsonEncode(trackings),
+        'urls_fotos': jsonEncode(urlsFotos),
+        'url_firma': urlFirma ?? '',
+        'monto_cobrado': montoCobrado.toStringAsFixed(2),
+        'descuento': descuento.toStringAsFixed(2),
+        'id_usuario': idUsuario,
+        'id_medio_pago': idMedioPago?.toString() ?? '',
+      },
+    );
   }
 
   // --- OBTENER HISTORIAL DE ENTREGADAS ---
@@ -296,68 +330,16 @@ class ApiService {
     String filtro = '',
     required String fecha,
   }) async {
-    final baseUrl = await _getBaseUrl();
-    if (baseUrl.isEmpty) {
-      return {'success': false, 'message': 'Servidor no configurado'};
-    }
-
-    final url = Uri.parse("${baseUrl}get_historial.php");
-    final domain = await _getCompanyDomain();
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          'X-Company-Domain': domain,
-        },
-        body: jsonEncode({"filtro": filtro.trim(), "fecha": fecha}),
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        return {
-          "success": false,
-          "message": "Error ${response.statusCode} en el servidor",
-        };
-      }
-    } catch (e) {
-      return {"success": false, "message": "Error de conexión: $e"};
-    }
+    return _postJson(
+      'get_historial.php',
+      body: {'filtro': filtro.trim(), 'fecha': fecha},
+    );
   }
 
   // --- OBTENER DEUDA ---
   static Future<Map<String, dynamic>> obtenerDeuda(
     List<String> trackings,
   ) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final baseUrl = prefs.getString('base_url') ?? '';
-      final domain = prefs.getString('company_domain') ?? '';
-
-      final urlStr = baseUrl.endsWith('/')
-          ? '${baseUrl}api_obtener_deuda.php'
-          : '$baseUrl/api_obtener_deuda.php';
-
-      final response = await http.post(
-        Uri.parse(urlStr),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Company-Domain': domain,
-        },
-        body: jsonEncode({'trackings': trackings}),
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-      return {
-        'success': false,
-        'error': 'Error en el servidor al consultar la deuda',
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Error de conexión: $e'};
-    }
+    return _postJson('api_obtener_deuda.php', body: {'trackings': trackings});
   }
 }

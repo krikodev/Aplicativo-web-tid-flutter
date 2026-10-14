@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/core/widgets/custom_text_field.dart';
+import 'package:apps_transporte/data/datasources/api_config.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   static const routeName = '/configuracion';
@@ -14,9 +15,10 @@ class ConfiguracionScreen extends StatefulWidget {
 }
 
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
-  final _dominioController = TextEditingController();
-  final _baseUrlController =
-      TextEditingController(); // NUEVO: Controlador para la URL
+  final _formKey = GlobalKey<FormState>();
+  final _baseUrlController = TextEditingController(
+    text: ApiConfig.defaultBaseUrl,
+  );
   bool _isLoading = false;
 
   @override
@@ -27,59 +29,61 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   @override
   void dispose() {
-    _dominioController.dispose();
     _baseUrlController.dispose();
     super.dispose();
   }
 
   Future<void> _cargarConfiguracionActual() async {
     final prefs = await SharedPreferences.getInstance();
-    final dominioGuardado = prefs.getString('company_domain') ?? '';
     final baseUrlGuardada = prefs.getString('base_url') ?? '';
 
     if (mounted) {
       setState(() {
-        _dominioController.text = dominioGuardado;
-        _baseUrlController.text = baseUrlGuardada;
+        if (baseUrlGuardada.isNotEmpty) {
+          _baseUrlController.text = baseUrlGuardada;
+        }
       });
     }
   }
 
   Future<void> _guardarConfiguracion() async {
-    final dominio = _dominioController.text.trim().toLowerCase();
-    final baseUrl = _baseUrlController.text.trim();
-
-    if (dominio.isEmpty || baseUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor completa ambos campos.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
+    if (_isLoading || !_formKey.currentState!.validate()) return;
+    final config = ApiConfig.fromBaseUrl(_baseUrlController.text);
 
     setState(() => _isLoading = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('company_domain', dominio);
-    await prefs.setString(
-      'base_url',
-      baseUrl,
-    ); // ESTO FALTABA, AHORA SÍ SE GUARDA
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final changed =
+          prefs.getString('base_url') != config.baseUrl ||
+          prefs.getString('company_domain') != ApiConfig.companyDomain;
+      if (changed) {
+        await prefs.remove('id_usuario');
+        await prefs.remove('id_terminal');
+        await prefs.remove('is_logged_in');
+      }
+      await prefs.setString('company_domain', ApiConfig.companyDomain);
+      await prefs.setString('base_url', config.baseUrl);
 
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Configuración enlazada con éxito.'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-
-    Navigator.pushReplacementNamed(context, '/login');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Configuración guardada. Inicia sesión para probarla.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar la configuración.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -110,65 +114,82 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.dns_outlined, color: AppColors.accent, size: 28),
-                    SizedBox(width: 12),
-                    Text(
-                      "Conexión de Servidor",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                        fontSize: 16,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.dns_outlined,
+                        color: AppColors.accent,
+                        size: 28,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        "Conexión de Servidor",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Ingresa la URL HTTPS de la API de TID.',
+                    style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // NUEVO INPUT: URL del servidor
+                  CustomTextField(
+                    controller: _baseUrlController,
+                    label: 'URL del Servidor API',
+                    hintText: ApiConfig.defaultBaseUrl,
+                    prefixIcon: const Icon(
+                      Icons.link,
+                      color: AppColors.textGrey,
+                    ),
+                    keyboardType: TextInputType.url,
+                    validator: (value) {
+                      try {
+                        ApiConfig.fromBaseUrl(value ?? '');
+                        return null;
+                      } on FormatException catch (e) {
+                        return e.message;
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  const InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Empresa',
+                      prefixIcon: Icon(
+                        Icons.language,
+                        color: AppColors.textGrey,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  "Configura la URL de tu API y el dominio de tu empresa.",
-                  style: TextStyle(color: AppColors.textGrey, fontSize: 13),
-                ),
-                const SizedBox(height: 32),
-
-                // NUEVO INPUT: URL del servidor
-                CustomTextField(
-                  controller: _baseUrlController,
-                  label: 'URL del Servidor API',
-                  hintText: 'ej: http://192.168.1.20/apis/',
-                  prefixIcon: const Icon(Icons.link, color: AppColors.textGrey),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 16),
-
-                // INPUT ORIGINAL: Dominio
-                CustomTextField(
-                  controller: _dominioController,
-                  label: 'Dominio',
-                  hintText: 'ej: jrcargo.com.pe',
-                  prefixIcon: const Icon(
-                    Icons.language,
-                    color: AppColors.textGrey,
+                    child: Text(ApiConfig.companyDomain),
                   ),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                CustomButton(
-                  text: 'Guardar y Enlazar',
-                  onPressed: _guardarConfiguracion,
-                  isLoading: _isLoading,
-                ),
-              ],
+                  CustomButton(
+                    text: 'Guardar configuración',
+                    onPressed: _guardarConfiguracion,
+                    isLoading: _isLoading,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

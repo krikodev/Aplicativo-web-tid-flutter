@@ -6,7 +6,6 @@ import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/core/widgets/custom_text_field.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
 import 'package:apps_transporte/presentation/routes/app_routes.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -58,18 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           return;
         }
-
-        // NUEVO: guardar el ID para registrar entregas y cobros.
-        final prefs = await SharedPreferences.getInstance();
-
-        await prefs.setString('id_usuario', user['id_usuario'].toString());
-
-        // NUEVO: guardar el terminal, si viene en la respuesta.
-        if (user['id_terminal'] != null) {
-          await prefs.setString('id_terminal', user['id_terminal'].toString());
-        }
-
-        if (!mounted) return;
 
         Navigator.pushReplacementNamed(context, AppRoutes.mainLayout);
       } else {
@@ -126,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
