@@ -14,6 +14,7 @@ class CobroScreen extends StatefulWidget {
 
 class _CobroScreenState extends State<CobroScreen> {
   bool _isLoading = true;
+  String? _error;
   double _deudaTotal = 0.0;
   double _descuento = 0.0;
   bool _requiereCobro = false;
@@ -28,6 +29,10 @@ class _CobroScreenState extends State<CobroScreen> {
   }
 
   Future<void> _cargarDeuda() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     final result = await ApiService.obtenerDeuda(widget.trackings);
 
     if (!mounted) return;
@@ -35,7 +40,7 @@ class _CobroScreenState extends State<CobroScreen> {
     if (result['success'] == true) {
       setState(() {
         // MODIFICADO: leer los datos del nuevo formato PHP.
-        _deudaTotal = ((result['deuda_total'] ?? 0) as num).toDouble();
+        _deudaTotal = (result['deuda_total'] as num).toDouble();
 
         _requiereCobro = result['requiere_cobro'] == true;
 
@@ -47,7 +52,7 @@ class _CobroScreenState extends State<CobroScreen> {
       });
 
       // MODIFICADO: si no requiere cobro, pasar directamente a evidencias.
-      if (!_requiereCobro || _deudaTotal <= 0) {
+      if (!_requiereCobro) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -62,16 +67,9 @@ class _CobroScreenState extends State<CobroScreen> {
     } else {
       setState(() {
         _isLoading = false;
+        _error =
+            result['error'] ?? result['message'] ?? 'Error al obtener deuda';
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['error'] ?? 'Error al obtener deuda'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-
-      Navigator.pop(context);
     }
   }
 
@@ -151,13 +149,13 @@ class _CobroScreenState extends State<CobroScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         decoration: BoxDecoration(
           color: seleccionado
-              ? AppColors.accent.withOpacity(0.12)
+              ? AppColors.accent.withValues(alpha: 0.12)
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: seleccionado
                 ? AppColors.accent
-                : Colors.grey.withOpacity(0.3),
+                : Colors.grey.withValues(alpha: 0.3),
             width: seleccionado ? 2 : 1,
           ),
         ),
@@ -209,6 +207,23 @@ class _CobroScreenState extends State<CobroScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.accent),
+            )
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _cargarDeuda,
+                      child: const Text('Volver a consultar deuda'),
+                    ),
+                  ],
+                ),
+              ),
             )
           : SafeArea(
               child: Column(
@@ -262,7 +277,7 @@ class _CobroScreenState extends State<CobroScreen> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.grey.withOpacity(0.2),
+                              color: Colors.grey.withValues(alpha: 0.2),
                             ),
                           ),
                           child: Column(
@@ -374,7 +389,7 @@ class _CobroScreenState extends State<CobroScreen> {
                       color: Colors.white,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 20,
                           offset: const Offset(0, -5),
                         ),
