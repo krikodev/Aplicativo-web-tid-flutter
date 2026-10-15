@@ -232,7 +232,7 @@ void main() {
         final result = await http.runWithClient(
           () => ApiService.registrarEntregaLote(
             trackings: ['TID-001'],
-            fotos: [XFile(file.path)],
+            fotos: [XFile(file.path), XFile(file.path)],
             firma: XFile(file.path),
             montoCobrado: 20,
             descuento: 2,
@@ -250,7 +250,7 @@ void main() {
           }),
         );
         expect(result['success'], true);
-        expect(uploads, 2);
+        expect(uploads, 3);
         expect(
           delivery!.url.pathSegments.last,
           'api_procesar_entrega_cobro.php',
@@ -258,8 +258,9 @@ void main() {
         expect(delivery!.headers['X-Company-Domain'], 'tid.net.pe');
         expect(delivery!.bodyFields, {
           'trackings': '["TID-001"]',
-          'urls_fotos': '["https://example.com/photo-1.png"]',
-          'url_firma': 'https://example.com/photo-2.png',
+          'urls_fotos':
+              '["https://example.com/photo-1.png","https://example.com/photo-2.png"]',
+          'url_firma': 'https://example.com/photo-3.png',
           'monto_cobrado': '20.00',
           'descuento': '2.00',
           'id_usuario': '42',

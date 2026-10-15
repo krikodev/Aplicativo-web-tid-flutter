@@ -234,18 +234,24 @@ class ApiService {
     required double descuento,
     required int? idMedioPago,
   }) async {
-    if (trackings.isEmpty) {
+    if (trackings.length != 1 || trackings.single.trim().isEmpty) {
       return {
         'success': false,
-        'error': 'No se recibieron códigos de seguimiento.',
+        'error': 'Procesa una sola encomienda por operación.',
       };
     }
 
-    if (fotos.isEmpty) {
-      return {'success': false, 'error': 'Debes tomar al menos una foto.'};
+    if (fotos.length != 2 || firma == null) {
+      return {
+        'success': false,
+        'error': 'Se requieren dos fotografías y la firma del receptor.',
+      };
     }
 
-    if (montoCobrado < 0 || descuento < 0) {
+    if (!montoCobrado.isFinite ||
+        !descuento.isFinite ||
+        montoCobrado < 0 ||
+        descuento < 0) {
       return {
         'success': false,
         'error': 'El monto y el descuento no pueden ser negativos.',
@@ -273,7 +279,7 @@ class ApiService {
     // MODIFICADO: no usar un usuario predeterminado.
     final idUsuario = prefs.get('id_usuario')?.toString();
 
-    if (idUsuario == null || idUsuario.trim().isEmpty) {
+    if (idUsuario == null || (int.tryParse(idUsuario) ?? 0) <= 0) {
       return {
         'success': false,
         'error':
@@ -297,26 +303,22 @@ class ApiService {
       urlsFotos.add(urlFoto);
     }
 
-    // NUEVO: subir la firma por separado, si se proporcionó.
-    String? urlFirma;
+    // La firma se conserva separada de las dos fotografías.
+    final urlFirma = await _subirFotoCloudinary(firma);
 
-    if (firma != null) {
-      urlFirma = await _subirFotoCloudinary(firma);
-
-      if (urlFirma == null) {
-        return {
-          'success': false,
-          'error': 'No se pudo subir la firma del receptor.',
-        };
-      }
+    if (urlFirma == null) {
+      return {
+        'success': false,
+        'error': 'No se pudo subir la firma del receptor.',
+      };
     }
 
     return _post(
       'api_procesar_entrega_cobro.php',
       body: {
-        'trackings': jsonEncode(trackings),
+        'trackings': jsonEncode([trackings.single.trim()]),
         'urls_fotos': jsonEncode(urlsFotos),
-        'url_firma': urlFirma ?? '',
+        'url_firma': urlFirma,
         'monto_cobrado': montoCobrado.toStringAsFixed(2),
         'descuento': descuento.toStringAsFixed(2),
         'id_usuario': idUsuario,
@@ -340,6 +342,59 @@ class ApiService {
   static Future<Map<String, dynamic>> obtenerDeuda(
     List<String> trackings,
   ) async {
-    return _postJson('api_obtener_deuda.php', body: {'trackings': trackings});
+    if (trackings.length != 1 || trackings.single.trim().isEmpty) {
+      return _failure(
+        'Procesa una sola encomienda por operación.',
+        code: 'invalid_trackings',
+      );
+    }
+    final codigo = trackings.single.trim();
+    final result = await _postJson(
+      'api_obtener_deuda.php',
+      body: {
+        'trackings': [codigo],
+      },
+    );
+    if (result['success'] != true) return result;
+
+    // Una respuesta incompleta nunca debe interpretarse como entrega sin cobro.
+    final total = double.tryParse(result['deuda_total']?.toString() ?? '');
+    final requiresPayment = result['requiere_cobro'];
+    final payment = result['estado_pago'];
+    final details = result['detalles'];
+    final valid =
+        total != null &&
+        total.isFinite &&
+        total >= 0 &&
+        requiresPayment is bool &&
+        result['estado_encomienda'] == 'EN DESTINO' &&
+        details is List &&
+        (requiresPayment
+            ? payment == 'PAGO EN DESTINO' && total > 0 && details.length == 1
+            : ['PAGADO', 'PAGO EN BLOQUE', 'CREDITO'].contains(payment) &&
+                  total == 0 &&
+                  details.isEmpty);
+    if (!valid) return _invalidDebt();
+
+    final normalizedDetails = <Map<String, dynamic>>[];
+    for (final detail in details) {
+      if (detail is! Map<String, dynamic>) return _invalidDebt();
+      final amount = double.tryParse(detail['total_bruto']?.toString() ?? '');
+      if (detail['codigo'] != codigo ||
+          (int.tryParse(detail['id_venta']?.toString() ?? '') ?? 0) <= 0 ||
+          amount == null ||
+          !amount.isFinite ||
+          amount != total ||
+          detail['estado_venta'] != 'PENDIENTE') {
+        return _invalidDebt();
+      }
+      normalizedDetails.add({...detail, 'total_bruto': amount});
+    }
+    return {...result, 'deuda_total': total, 'detalles': normalizedDetails};
   }
+
+  static Map<String, dynamic> _invalidDebt() => _failure(
+    'La API devolvió una deuda incompleta o inconsistente. Actualiza los PHP del servidor.',
+    code: 'invalid_debt_response',
+  );
 }

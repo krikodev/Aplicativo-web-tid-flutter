@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# La conexión real y las fotografías solo pertenecen al servidor.
+/server_api/config/conexion.php
+/server_api/img/*
+!/server_api/img/.htaccess

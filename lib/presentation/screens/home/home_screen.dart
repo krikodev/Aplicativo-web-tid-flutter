@@ -93,6 +93,7 @@ class HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+    if (!mounted) return;
     if (resultadoEntrega == true) {
       _trackingsSeleccionados.clear();
       if (widget.onSelectionChanged != null) widget.onSelectionChanged!(0);
@@ -123,7 +124,7 @@ class HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
+                              color: Colors.black.withValues(alpha: 0.03),
                               blurRadius: 10,
                             ),
                           ],
@@ -180,7 +181,7 @@ class HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
@@ -195,7 +196,7 @@ class HomeScreenState extends State<HomeScreen> {
                       // MODIFICADO
                       child: TextField(
                         controller: _dniController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.text,
                         decoration: const InputDecoration(
                           hintText: 'Ingresar DNI o tracking...',
                           hintStyle: TextStyle(
@@ -276,7 +277,7 @@ class HomeScreenState extends State<HomeScreen> {
               child: _encomiendas.isEmpty
                   ? const Center(
                       child: Text(
-                        'Ingresa un DNI para ver los paquetes.',
+                        'Ingresa un DNI o tracking para ver los paquetes.',
                         style: TextStyle(color: AppColors.textGrey),
                       ),
                     )
@@ -305,6 +306,7 @@ class HomeScreenState extends State<HomeScreen> {
                               if (isSelected) {
                                 _trackingsSeleccionados.remove(trackingStr);
                               } else {
+                                _trackingsSeleccionados.clear();
                                 _trackingsSeleccionados.add(trackingStr);
                               }
                             });
@@ -348,8 +350,8 @@ class HomeScreenState extends State<HomeScreen> {
           boxShadow: [
             BoxShadow(
               color: isSelected
-                  ? AppColors.accent.withOpacity(0.15)
-                  : Colors.black.withOpacity(0.04),
+                  ? AppColors.accent.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.04),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),

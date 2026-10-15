@@ -1,0 +1,19 @@
+<?php
+// EJEMPLO OPCIONAL: conserva config/conexion.php si ya conecta correctamente.
+// Si usas este ejemplo, configura las variables en el hosting y renómbralo.
+// Nunca subas contraseñas al repositorio ni a Flutter.
+require_once __DIR__ . '/api.php';
+
+$dbHost = getenv('TID_DB_HOST') ?: 'localhost';
+$dbName = getenv('TID_DB_NAME');
+$dbUser = getenv('TID_DB_USER');
+$dbPass = getenv('TID_DB_PASSWORD');
+if (!$dbName || !$dbUser || $dbPass === false) {
+    throw new RuntimeException('Falta configurar la conexión TID en el hosting.');
+}
+$pdo = new PDO(
+    'mysql:host=' . $dbHost . ';dbname=' . $dbName . ';charset=utf8mb4',
+    $dbUser,
+    $dbPass,
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+);
