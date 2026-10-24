@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   final _dniController = TextEditingController();
   bool _isLoading = false;
+  bool _buscarPorTracking = false;
   Timer? _temporizadorBusqueda;
   int _versionBusqueda = 0;
   List<dynamic> _encomiendas = [];
@@ -29,18 +30,11 @@ class HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // MODIFICADO: buscar por DNI o tracking.
-  Future<void> _buscarPorDni({String? consulta}) async {
+  Future<void> _buscar({String? consulta}) async {
     final termino = (consulta ?? _dniController.text).trim();
 
     if (termino.length < 3) {
-      setState(() {
-        _encomiendas = [];
-        _trackingsSeleccionados.clear();
-        _isLoading = false;
-      });
-
-      widget.onSelectionChanged?.call(0);
+      _limpiarResultados();
       return;
     }
 
@@ -51,11 +45,8 @@ class HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // El endpoint actual recibe el término en el parámetro dni.
-      // MODIFICADO: el término puede ser DNI o tracking.
       final result = await ApiService.getEncomiendasPorDni(termino);
 
-      // NUEVO: ignorar respuestas de búsquedas anteriores.
       if (!mounted || versionActual != _versionBusqueda) return;
 
       setState(() {
@@ -63,22 +54,83 @@ class HomeScreenState extends State<HomeScreen> {
         _encomiendas = result['success'] == true ? result['data'] ?? [] : [];
       });
 
-      if (result['success'] != true && result['message'] != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(result['message'])));
-      }
-
       _trackingsSeleccionados.clear();
       widget.onSelectionChanged?.call(0);
-    } catch (e) {
+
+      if (result['success'] != true && result['message'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'].toString()),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
       if (!mounted || versionActual != _versionBusqueda) return;
 
       setState(() {
         _isLoading = false;
         _encomiendas = [];
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo realizar la búsqueda'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
+  }
+
+  void _limpiarResultados() {
+    _versionBusqueda++;
+
+    setState(() {
+      _encomiendas = [];
+      _trackingsSeleccionados.clear();
+      _isLoading = false;
+    });
+
+    widget.onSelectionChanged?.call(0);
+  }
+
+  void _cambiarModo(bool tracking) {
+    _temporizadorBusqueda?.cancel();
+
+    setState(() {
+      _buscarPorTracking = tracking;
+      _dniController.clear();
+    });
+
+    _limpiarResultados();
+  }
+
+  void _onSearchChanged(String valor) {
+    _temporizadorBusqueda?.cancel();
+
+    final termino = valor.trim();
+
+    if (termino.isEmpty) {
+      _limpiarResultados();
+      return;
+    }
+
+    // DNI: búsqueda automática únicamente al completar los 8 dígitos.
+    if (!_buscarPorTracking) {
+      final soloNumeros = termino.replaceAll(RegExp(r'\\D'), '');
+
+      if (soloNumeros.length == 8) {
+        _buscar(consulta: soloNumeros);
+      } else if (soloNumeros.length > 8) {
+        _limpiarResultados();
+      } else {
+        _limpiarResultados();
+      }
+      return;
+    }
+
+    // Tracking: no hacemos búsquedas parciales.
+    // El usuario confirma con el teclado para evitar consultas innecesarias.
   }
 
   Future<void> continuarEntrega() async {
@@ -167,84 +219,140 @@ class HomeScreenState extends State<HomeScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Container(
-                padding: const EdgeInsets.only(
-                  left: 8,
-                  right: 8,
-                  top: 4,
-                  bottom: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDEEF0),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 12),
-                    
-                    const SizedBox(width: 16),
-                    Expanded(
-                      // MODIFICADO
-                      child: TextField(
-                        controller: _dniController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          hintText: 'DNI o tracking',
-                          hintStyle: TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-
-                        // NUEVO: búsqueda automática desde el tercer dígito.
-                        onChanged: (valor) {
-                          _temporizadorBusqueda?.cancel();
-
-                          if (valor.trim().length < 3) {
-                            _versionBusqueda++;
-
-                            setState(() {
-                              _encomiendas = [];
-                              _isLoading = false;
-                            });
-
-                            _trackingsSeleccionados.clear();
-                            widget.onSelectionChanged?.call(0);
-                            return;
-                          }
-
-                          _temporizadorBusqueda = Timer(
-                            const Duration(milliseconds: 300),
-                            () => _buscarPorDni(consulta: valor),
-                          );
-                        },
-
-                        onSubmitted: (_) => _buscarPorDni(),
-                      ),
-                    ),
-                    if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: AppColors.accent,
-                            strokeWidth: 2,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildSearchMode(
+                            label: 'DNI',
+                            icon: Icons.badge_outlined,
+                            selected: !_buscarPorTracking,
+                            onTap: () => _cambiarModo(false),
                           ),
                         ),
+                        Expanded(
+                          child: _buildSearchMode(
+                            label: 'Tracking',
+                            icon: Icons.qr_code_2_rounded,
+                            selected: _buscarPorTracking,
+                            onTap: () => _cambiarModo(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: _isLoading
+                            ? AppColors.accent.withOpacity(0.35)
+                            : Colors.transparent,
                       ),
-                  ],
-                ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _buscarPorTracking
+                              ? Icons.qr_code_2_rounded
+                              : Icons.badge_outlined,
+                          color: AppColors.textGrey,
+                          size: 21,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _dniController,
+                            keyboardType: _buscarPorTracking
+                                ? TextInputType.text
+                                : TextInputType.number,
+                            textInputAction: TextInputAction.search,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: InputDecoration(
+                              hintText: _buscarPorTracking
+                                  ? 'Código de tracking'
+                                  : 'DNI del destinatario',
+                              hintStyle: const TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                            ),
+                            onChanged: _onSearchChanged,
+                            onSubmitted: (_) => _buscar(),
+                          ),
+                        ),
+                        if (_dniController.text.isNotEmpty && !_isLoading)
+                          IconButton(
+                            tooltip: 'Limpiar',
+                            onPressed: () {
+                              _dniController.clear();
+                              _limpiarResultados();
+                              setState(() {});
+                            },
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: AppColors.textGrey,
+                            ),
+                          ),
+                        if (_isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(
+                                color: AppColors.accent,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!_buscarPorTracking)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4, top: 7),
+                      child: Text(
+                        'La búsqueda inicia al completar 8 dígitos',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                    ),
+                  if (_buscarPorTracking)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4, top: 7),
+                      child: Text(
+                        'Ingresa el código y presiona buscar',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
@@ -299,6 +407,54 @@ class HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchMode({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(11),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 17,
+              color: selected ? AppColors.textDark : AppColors.textGrey,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppColors.textDark : AppColors.textGrey,
+              ),
             ),
           ],
         ),
