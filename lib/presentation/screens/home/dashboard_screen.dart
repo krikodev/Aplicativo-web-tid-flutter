@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
+import 'package:apps_transporte/data/datasources/api_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   static const routeName = '/dashboard';
-
   const DashboardScreen({super.key});
 
   @override
@@ -11,211 +11,180 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Estos datos vendrán de tu API en el futuro
-  final int entregasHoy = 12;
-  final int paquetesPendientes = 4;
-  final double porcentajeExito = 0.75; // 75%
+  bool _loading = true;
+  String? _error;
+  List<dynamic> _entregas = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarResumen();
+  }
+
+  Future<void> _cargarResumen() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final now = DateTime.now();
+    final fecha =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    try {
+      final result = await ApiService.getHistorialEntregadas(fecha: fecha);
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final data = result['data'];
+        setState(() {
+          _entregas = data is List ? data : [];
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _loading = false;
+          _entregas = [];
+          _error = result['message']?.toString() ?? 'No se pudo cargar el resumen.';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _entregas = [];
+        _error = 'No se pudo cargar el resumen.';
+      });
+    }
+  }
+
+  String _value(dynamic item, List<String> keys) {
+    if (item is Map) {
+      for (final key in keys) {
+        final value = item[key];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          return value.toString();
+        }
+      }
+    }
+    return '—';
+  }
+
+  String _time(dynamic value) {
+    if (value == null) return '';
+    final match = RegExp(r'(\d{2}:\d{2})').firstMatch(value.toString());
+    return match?.group(1) ?? '';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Fondo claro
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(
-            bottom: 120,
-          ), // Espacio para la píldora flotante
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: RefreshIndicator(
+          onRefresh: _cargarResumen,
+          color: AppColors.accent,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 120),
             children: [
-              // --- CABECERA ---
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Resumen General",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Resumen',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textDark,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          "Tu rendimiento de hoy",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textGrey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 10,
+                          SizedBox(height: 3),
+                          Text(
+                            'Actividad de hoy',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textGrey,
+                            ),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.bar_chart,
-                        color: AppColors.accent,
-                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Actualizar',
+                      onPressed: _loading ? null : _cargarResumen,
+                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 8),
-
-              // --- TARJETAS DE MÉTRICAS PRINCIPALES ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "Entregados",
-                        value: entregasHoy.toString(),
-                        icon: Icons.check_circle,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: "Pendientes",
-                        value: paquetesPendientes.toString(),
-                        icon: Icons.pending_actions,
-                        color: const Color(0xFFFF944D), // Naranja suave
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // --- TARJETA DE PROGRESO (GRÁFICO SIMPLE) ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E), // Oscuro elegante
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 100),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.accent),
                   ),
+                )
+              else if (_error != null)
+                _empty(
+                  Icons.cloud_off_outlined,
+                  'Sin conexión',
+                  _error!,
+                  action: 'Reintentar',
+                  onTap: _cargarResumen,
+                )
+              else ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     children: [
-                      // Círculo de progreso
-                      SizedBox(
-                        width: 70,
-                        height: 70,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            CircularProgressIndicator(
-                              value: porcentajeExito,
-                              strokeWidth: 8,
-                              backgroundColor: Colors.white.withOpacity(0.1),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.accent,
-                              ),
-                            ),
-                            Center(
-                              child: Text(
-                                "${(porcentajeExito * 100).toInt()}%",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
+                      Expanded(
+                        child: _metric(
+                          Icons.check_circle_outline_rounded,
+                          _entregas.length.toString(),
+                          'Entregadas',
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      // Textos del progreso
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Efectividad de Ruta",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              "Gran trabajo, estás a punto de terminar tus entregas programadas.",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _metric(
+                          Icons.today_rounded,
+                          'Hoy',
+                          'Fecha actual',
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // --- ACTIVIDAD RECIENTE ---
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  "Últimas Entregas",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+                const SizedBox(height: 28),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Últimas',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textDark,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // Lista mockeada de actividad reciente
-              _buildRecentActivityRow(
-                "ID: TRK-98213",
-                "Hace 10 min",
-                "Av. Javier Prado 123",
-              ),
-              _buildRecentActivityRow(
-                "ID: TRK-45122",
-                "Hace 45 min",
-                "Calle Las Begonias 450",
-              ),
-              _buildRecentActivityRow(
-                "ID: TRK-09123",
-                "Hace 2 horas",
-                "Real Plaza Puruchuco",
-              ),
+                const SizedBox(height: 12),
+                if (_entregas.isEmpty)
+                  _empty(
+                    Icons.inbox_outlined,
+                    'Sin entregas',
+                    'No hay entregas registradas hoy.',
+                  )
+                else
+                  ..._entregas.take(5).map(_delivery),
+              ],
             ],
           ),
         ),
@@ -223,53 +192,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // WIDGET: TARJETA DE MÉTRICA
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _metric(IconData icon, String value, String label) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: AppColors.accent.withOpacity(0.10),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: AppColors.accent, size: 20),
           ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textGrey,
-              fontWeight: FontWeight.w500,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -277,23 +238,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // WIDGET: FILA DE ACTIVIDAD RECIENTE
-  Widget _buildRecentActivityRow(
-    String tracking,
-    String tiempo,
-    String direccion,
-  ) {
+  Widget _delivery(dynamic item) {
+    final tracking = _value(item, ['traking', 'tracking', 'codigo']);
+    final destinatario = _value(item, ['destinatario']);
+    final fecha = _value(item, ['fecha_entrega']);
+    final hora = _time(fecha);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12, left: 24, right: 24),
+      margin: const EdgeInsets.only(left: 24, right: 24, bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          const Icon(Icons.check_circle, color: AppColors.success, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -302,30 +262,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Text(
                   tracking,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.textDark,
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
-                  direccion,
+                  destinatario,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textGrey,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          if (hora.isNotEmpty)
+            Text(
+              hora,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.accent,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _empty(
+    IconData icon,
+    String title,
+    String message, {
+    String? action,
+    VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 70, 32, 40),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: AppColors.textGrey.withOpacity(0.45)),
+          const SizedBox(height: 14),
           Text(
-            tiempo,
+            title,
             style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.accent,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textDark,
             ),
           ),
+          const SizedBox(height: 5),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+          ),
+          if (action != null && onTap != null) ...[
+            const SizedBox(height: 16),
+            TextButton(onPressed: onTap, child: Text(action)),
+          ],
         ],
       ),
     );
