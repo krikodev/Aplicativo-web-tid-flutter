@@ -117,7 +117,7 @@ class HomeScreenState extends State<HomeScreen> {
 
     // DNI: búsqueda automática únicamente al completar los 8 dígitos.
     if (!_buscarPorTracking) {
-      final soloNumeros = termino.replaceAll(RegExp(r'\\D'), '');
+      final soloNumeros = termino.replaceAll(RegExp(r'\D'), '');
 
       if (soloNumeros.length == 8) {
         _buscar(consulta: soloNumeros);
@@ -148,7 +148,7 @@ class HomeScreenState extends State<HomeScreen> {
     if (resultadoEntrega == true) {
       _trackingsSeleccionados.clear();
       if (widget.onSelectionChanged != null) widget.onSelectionChanged!(0);
-      _buscarPorDni();
+      await _buscar();
     }
   }
 
