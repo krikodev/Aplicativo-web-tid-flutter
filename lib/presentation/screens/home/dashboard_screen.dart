@@ -81,6 +81,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final saludo = _saludo();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
@@ -101,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _saludo(),
+                            saludo,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
