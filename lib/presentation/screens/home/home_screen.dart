@@ -16,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class HomeScreenState extends State<HomeScreen> {
   final _dniController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   bool _isLoading = false;
   bool _buscarPorTracking = false;
   Timer? _temporizadorBusqueda;
@@ -27,6 +28,7 @@ class HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _temporizadorBusqueda?.cancel();
     _dniController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -56,6 +58,7 @@ class HomeScreenState extends State<HomeScreen> {
 
       _trackingsSeleccionados.clear();
       widget.onSelectionChanged?.call(0);
+      _searchFocusNode.unfocus();
 
       if (result['success'] != true && result['message'] != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -282,6 +285,7 @@ class HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: TextField(
                             controller: _dniController,
+                            focusNode: _searchFocusNode,
                             keyboardType: _buscarPorTracking
                                 ? TextInputType.text
                                 : TextInputType.number,
