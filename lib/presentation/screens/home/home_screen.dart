@@ -149,9 +149,10 @@ class HomeScreenState extends State<HomeScreen> {
     );
 
     if (resultadoEntrega == true) {
-      _trackingsSeleccionados.clear();
-      if (widget.onSelectionChanged != null) widget.onSelectionChanged!(0);
-      await _buscar();
+      _temporizadorBusqueda?.cancel();
+      _dniController.clear();
+      _searchFocusNode.unfocus();
+      _limpiarResultados();
     }
   }
 
