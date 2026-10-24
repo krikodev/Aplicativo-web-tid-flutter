@@ -90,24 +90,38 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA), // Fondo claro moderno
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 32.0,
-            ),
-            child: Form(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                keyboardVisible ? 12 : 24,
+                20,
+                24 + MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight -
+                      (keyboardVisible ? 0 : 48),
+                ),
+                child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // LOGO
-                  Image.asset(Assets.logoSplash, width: 120, height: 120),
-                  const SizedBox(height: 32),
+                  Image.asset(
+                    Assets.logoSplash,
+                    width: keyboardVisible ? 72 : 88,
+                    height: keyboardVisible ? 72 : 88,
+                  ),
+                  SizedBox(height: keyboardVisible ? 12 : 20),
 
                   // TARJETA DE LOGIN
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(keyboardVisible ? 18 : 20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
@@ -125,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Text(
                           "APLICACION DE ENTREGA",
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 21,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textDark,
                           ),
@@ -138,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: AppColors.textGrey,
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 22),
 
                         CustomTextField(
                           controller: _emailController,
@@ -151,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           validator: Validators.validateEmail,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
 
                         CustomTextField(
                           controller: _passwordController,
@@ -175,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           validator: Validators.validatePassword,
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 20),
 
                         CustomButton(
                           text: 'Ingresar',
@@ -186,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
 
                   // CONFIGURACIÓN TÉCNICA
                   TextButton.icon(
