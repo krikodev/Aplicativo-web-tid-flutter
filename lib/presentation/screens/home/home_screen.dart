@@ -145,7 +145,7 @@ class HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           Text(
-                            "Búsqueda por DNI",
+                            "Entregas",
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -189,15 +189,15 @@ class HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   children: [
                     const SizedBox(width: 12),
-                    const Icon(Icons.search, color: AppColors.textGrey),
-                    const SizedBox(width: 12),
+                    
+                    const SizedBox(width: 16),
                     Expanded(
                       // MODIFICADO
                       child: TextField(
                         controller: _dniController,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          hintText: 'Ingresar DNI o tracking...',
+                          hintText: 'DNI o tracking',
                           hintStyle: TextStyle(
                             color: AppColors.textGrey,
                             fontSize: 14,
@@ -231,30 +231,18 @@ class HomeScreenState extends State<HomeScreen> {
                         onSubmitted: (_) => _buscarPorDni(),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: _buscarPorDni,
-                      child: Container(
-                        width: 45,
-                        height: 45,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1E1E1E),
-                          shape: BoxShape.circle,
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: AppColors.accent,
+                            strokeWidth: 2,
+                          ),
                         ),
-                        child: _isLoading
-                            ? const Padding(
-                                padding: EdgeInsets.all(12.0),
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.white,
-                                size: 18,
-                              ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -263,7 +251,7 @@ class HomeScreenState extends State<HomeScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.0),
               child: Text(
-                "Paquetes Pendientes",
+                "Encomiendas",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -276,7 +264,7 @@ class HomeScreenState extends State<HomeScreen> {
               child: _encomiendas.isEmpty
                   ? const Center(
                       child: Text(
-                        'Ingresa un DNI para ver los paquetes.',
+                        'Busca por DNI o tracking',
                         style: TextStyle(color: AppColors.textGrey),
                       ),
                     )
@@ -300,19 +288,13 @@ class HomeScreenState extends State<HomeScreen> {
                           remitente: item['remitente'] ?? 'Desconocido',
                           estado: item['estado']?.toString() ?? 'Pendiente',
                           isSelected: isSelected,
-                          onTap: () {
-                            setState(() {
-                              if (isSelected) {
-                                _trackingsSeleccionados.remove(trackingStr);
-                              } else {
-                                _trackingsSeleccionados.add(trackingStr);
-                              }
-                            });
-                            if (widget.onSelectionChanged != null) {
-                              widget.onSelectionChanged!(
-                                _trackingsSeleccionados.length,
-                              );
-                            }
+                          onTap: () async {
+                            if (_isLoading) return;
+                            _trackingsSeleccionados
+                              ..clear()
+                              ..add(trackingStr);
+                            widget.onSelectionChanged?.call(1);
+                            await continuarEntrega();
                           },
                         );
                       },
@@ -377,7 +359,7 @@ class HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "ID de Paquete",
+                        "Tracking",
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textGrey,
