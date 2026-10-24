@@ -36,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // NUEVO: llamar al servicio de autenticación.
       final result = await ApiService.login(
         _emailController.text.trim(),
         _passwordController.text,
@@ -45,7 +44,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        // NUEVO: obtener los datos del usuario.
         final user = result['user'];
 
         if (user == null || user['id_usuario'] == null) {
@@ -88,13 +86,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Fondo claro moderno
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+            final keyboardVisible =
+                MediaQuery.viewInsetsOf(context).bottom > 0;
+
             return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
                 20,
                 keyboardVisible ? 12 : 24,
@@ -107,126 +108,117 @@ class _LoginScreenState extends State<LoginScreen> {
                       (keyboardVisible ? 0 : 48),
                 ),
                 child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // LOGO
-                  Image.asset(
-                    Assets.logoSplash,
-                    width: keyboardVisible ? 72 : 88,
-                    height: keyboardVisible ? 72 : 88,
-                  ),
-                  SizedBox(height: keyboardVisible ? 12 : 20),
-
-                  // TARJETA DE LOGIN
-                  Container(
-                    padding: EdgeInsets.all(keyboardVisible ? 18 : 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "APLICACION DE ENTREGA",
-                          style: TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Ingresa tus credenciales",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textGrey,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-
-                        CustomTextField(
-                          controller: _emailController,
-                          label: 'Correo',
-                          hintText: 'ejemplo@correo.com',
-                          prefixIcon: const Icon(
-                            Icons.email_outlined,
-                            color: AppColors.textGrey,
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: Validators.validateEmail,
-                        ),
-                        const SizedBox(height: 14),
-
-                        CustomTextField(
-                          controller: _passwordController,
-                          label: 'Contraseña',
-                          hintText: '••••••••',
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppColors.textGrey,
-                          ),
-                          obscureText: _obscurePassword,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: AppColors.textGrey,
-                            ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                          validator: Validators.validatePassword,
-                        ),
-                        const SizedBox(height: 20),
-
-                        CustomButton(
-                          text: 'Ingresar',
-                          onPressed: _submit,
-                          isLoading: _isLoading,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // CONFIGURACIÓN TÉCNICA
-                  TextButton.icon(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.configuracion),
-                    icon: const Icon(
-                      Icons.settings,
-                      color: Colors.grey,
-                      size: 16,
-                    ),
-                    label: const Text(
-                      'Configurar Servidor',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        Assets.logoSplash,
+                        width: keyboardVisible ? 72 : 88,
+                        height: keyboardVisible ? 72 : 88,
                       ),
-                    ),
+                      SizedBox(height: keyboardVisible ? 12 : 20),
+                      Container(
+                        padding: EdgeInsets.all(keyboardVisible ? 18 : 20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "APLICACION DE ENTREGA",
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              "Ingresa tus credenciales",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            CustomTextField(
+                              controller: _emailController,
+                              label: 'Correo',
+                              hintText: 'ejemplo@correo.com',
+                              prefixIcon: const Icon(
+                                Icons.email_outlined,
+                                color: AppColors.textGrey,
+                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              validator: Validators.validateEmail,
+                            ),
+                            const SizedBox(height: 14),
+                            CustomTextField(
+                              controller: _passwordController,
+                              label: 'Contraseña',
+                              hintText: '••••••••',
+                              prefixIcon: const Icon(
+                                Icons.lock_outline,
+                                color: AppColors.textGrey,
+                              ),
+                              obscureText: _obscurePassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: AppColors.textGrey,
+                                ),
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                              ),
+                              validator: Validators.validatePassword,
+                            ),
+                            const SizedBox(height: 20),
+                            CustomButton(
+                              text: 'Ingresar',
+                              onPressed: _submit,
+                              isLoading: _isLoading,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextButton.icon(
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.configuracion,
+                        ),
+                        icon: const Icon(
+                          Icons.settings,
+                          color: Colors.grey,
+                          size: 16,
+                        ),
+                        label: const Text(
+                          'Configurar Servidor',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
+            );
           },
         ),
       ),
