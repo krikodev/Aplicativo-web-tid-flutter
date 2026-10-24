@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
+import 'package:apps_transporte/presentation/screens/home/home_screen.dart';
+import 'package:apps_transporte/presentation/screens/historial/historial_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   static const routeName = '/dashboard';
@@ -99,16 +101,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Resumen',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textDark,
+                            _saludo(),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textGrey,
                             ),
                           ),
-                          SizedBox(height: 3),
-                          Text(
-                            'Actividad de hoy',
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Resumen de entregas',
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textGrey,
@@ -143,21 +145,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
               else ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _summaryCard(),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     children: [
                       Expanded(
-                        child: _metric(
-                          Icons.check_circle_outline_rounded,
-                          _entregas.length.toString(),
-                          'Entregadas',
+                        child: _quickAction(
+                          icon: Icons.local_shipping_outlined,
+                          title: 'Nueva entrega',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const HomeScreen(),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _metric(
-                          Icons.today_rounded,
-                          'Hoy',
-                          'Fecha actual',
+                        child: _quickAction(
+                          icon: Icons.history_rounded,
+                          title: 'Ver historial',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const HistorialScreen(),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -185,6 +200,120 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 else
                   ..._entregas.take(5).map(_delivery),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _saludo() {
+    final hora = DateTime.now().hour;
+    if (hora < 12) return 'Buenos días 👋';
+    if (hora < 19) return 'Buenas tardes 👋';
+    return 'Buenas noches 👋';
+  }
+
+  Widget _summaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.accent,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Entregas completadas hoy',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _entregas.length.toString(),
+                  style: const TextStyle(
+                    fontSize: 30,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.check_circle_outline_rounded,
+            color: AppColors.success,
+            size: 24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickAction({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.accent, size: 19),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
