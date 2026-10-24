@@ -123,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "TransPorta Pro",
+                          "APLICACION DE ENTREGA",
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,

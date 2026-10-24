@@ -14,7 +14,7 @@ void main() async {
   // 1. Verificamos si el usuario ya configuró la empresa (dominio)
   final dominioGuardado = prefs.getString('company_domain');
 
-  // 2. Verificamos si el usuario ya inició sesión (puedes ajustar el nombre de tu variable)
+  // 2. Verificamos si el usuario ya inició sesión (puedes ajustar el nombj de tu variable)
   final estaLogueado = prefs.getBool('is_logged_in') ?? false;
 
   if (dominioGuardado != null && dominioGuardado.isNotEmpty) {
