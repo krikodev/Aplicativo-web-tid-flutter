@@ -97,6 +97,21 @@ class HomeScreenState extends State<HomeScreen> {
     widget.onSelectionChanged?.call(0);
   }
 
+  void _limpiarEntregaCompletada() {
+    _temporizadorBusqueda?.cancel();
+    _versionBusqueda++;
+
+    setState(() {
+      _dniController.clear();
+      _encomiendas = [];
+      _trackingsSeleccionados.clear();
+      _isLoading = false;
+    });
+
+    _searchFocusNode.unfocus();
+    widget.onSelectionChanged?.call(0);
+  }
+
   void _cambiarModo(bool tracking) {
     _temporizadorBusqueda?.cancel();
 
@@ -148,11 +163,15 @@ class HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (resultadoEntrega == true) {
-      _temporizadorBusqueda?.cancel();
-      _dniController.clear();
-      _searchFocusNode.unfocus();
-      _limpiarResultados();
+    if (resultadoEntrega == true && mounted) {
+      _limpiarEntregaCompletada();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Entrega completada. Lista y DNI limpiados.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
