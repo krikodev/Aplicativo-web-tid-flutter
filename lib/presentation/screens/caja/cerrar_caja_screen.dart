@@ -134,11 +134,11 @@ class _CerrarCajaScreenState extends State<CerrarCajaScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
         children: [
-          _dato('Referencia', _valor(_caja!['referencia'])),
-          _dato('Saldo inicial', 'S/ ' + _valor(_caja!['saldo_inicial'])),
-          _dato('Fecha de inicio', _valor(_caja!['fecha_inicio'])),
+          _dato('Referencia', _v(_caja!['referencia'])),
+          _dato('Saldo inicial', 'S/ ' + _v(_caja!['saldo_inicial'])),
+          _dato('Fecha de inicio', _v(_caja!['fecha_inicio'])),
           _dato('Estado', cerrada ? 'CERRADA' : 'ABIERTA'),
-          if (cerrada) _dato('Fecha de cierre', _valor(_caja!['fecha_fin'])),
+          if (cerrada) _dato('Fecha de cierre', _v(_caja!['fecha_fin'])),
           const SizedBox(height: 10),
           if (!cerrada)
             SizedBox(
