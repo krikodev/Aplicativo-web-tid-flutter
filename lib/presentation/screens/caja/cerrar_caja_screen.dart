@@ -99,6 +99,7 @@ class _CerrarCajaScreenState extends State<CerrarCajaScreen> {
                     const SizedBox(height: 16),
                     Center(child: OutlinedButton.icon(onPressed: _cargarCaja, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))),
                   ]
+                  )
                 : _caja == null
                     ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24), children: const [
                         SizedBox(height: 80),
