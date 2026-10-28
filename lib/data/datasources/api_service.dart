@@ -199,6 +199,47 @@ class ApiService {
     return decoded;
   }
 
+  // --- CAJA CHICA ---
+  static Future<Map<String, dynamic>> obtenerCajaAbierta() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsuario = prefs.get('id_usuario')?.toString();
+
+    if (idUsuario == null || idUsuario.trim().isEmpty) {
+      return _failure(
+        'No se encontró el usuario autenticado. Inicia sesión nuevamente.',
+        code: 'invalid_user',
+      );
+    }
+
+    return _post(
+      'api_caja_chica.php',
+      body: {
+        'accion': 'consultar',
+        'id_usuario': idUsuario,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>> cerrarCaja() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsuario = prefs.get('id_usuario')?.toString();
+
+    if (idUsuario == null || idUsuario.trim().isEmpty) {
+      return _failure(
+        'No se encontró el usuario autenticado. Inicia sesión nuevamente.',
+        code: 'invalid_user',
+      );
+    }
+
+    return _post(
+      'api_caja_chica.php',
+      body: {
+        'accion': 'cerrar',
+        'id_usuario': idUsuario,
+      },
+    );
+  }
+
   // --- OBTENER ENCOMIENDAS POR DNI ---
   static Future<Map<String, dynamic>> getEncomiendasPorDni(String dni) async {
     return _postJson('get_encomiendas_dni.php', body: {'dni': dni.trim()});
