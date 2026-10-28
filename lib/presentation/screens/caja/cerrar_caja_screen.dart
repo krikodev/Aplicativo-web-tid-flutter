@@ -84,54 +84,102 @@ class _CerrarCajaScreenState extends State<CerrarCajaScreen> {
   @override
   Widget build(BuildContext context) {
     final cerrada = _caja?['estado']?.toString() == '0';
+
+    Widget contenido;
+
+    if (_cargando) {
+      contenido = ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(
+            height: 300,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    } else if (_error != null) {
+      contenido = ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 80),
+          const Icon(Icons.error_outline, size: 52, color: Colors.redAccent),
+          const SizedBox(height: 16),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _cargarCaja,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reintentar'),
+          ),
+        ],
+      );
+    } else if (_caja == null) {
+      contenido = ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: const [
+          SizedBox(height: 80),
+          Icon(Icons.account_balance_wallet_outlined, size: 56, color: Colors.black45),
+          SizedBox(height: 16),
+          Text(
+            'No tienes una caja chica abierta.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ],
+      );
+    } else {
+      contenido = ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+        children: [
+          _dato('Referencia', _valor(_caja!['referencia'])),
+          _dato('Saldo inicial', 'S/ ' + _valor(_caja!['saldo_inicial'])),
+          _dato('Fecha de inicio', _valor(_caja!['fecha_inicio'])),
+          _dato('Estado', cerrada ? 'CERRADA' : 'ABIERTA'),
+          if (cerrada) _dato('Fecha de cierre', _valor(_caja!['fecha_fin'])),
+          const SizedBox(height: 10),
+          if (!cerrada)
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: _cerrando ? null : _cerrarCaja,
+                icon: _cerrando
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.lock_outline),
+                label: Text(_cerrando ? 'Cerrando...' : 'Cerrar caja'),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'La caja ya fue cerrada correctamente.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+        ],
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Cerrar caja'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Cerrar caja'),
+        centerTitle: true,
+      ),
       body: RefreshIndicator(
         onRefresh: _cargarCaja,
-        child: _cargando
-            ? const ListView(physics: AlwaysScrollableScrollPhysics(), children: [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
-            : _error != null
-                ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24), children: [
-                    const SizedBox(height: 80),
-                    const Icon(Icons.error_outline, size: 52, color: Colors.redAccent),
-                    const SizedBox(height: 16),
-                    Center(child: Text(_error!, textAlign: TextAlign.center)),
-                    const SizedBox(height: 16),
-                    Center(child: OutlinedButton.icon(onPressed: _cargarCaja, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))),
-                  ]
-                  )
-                : _caja == null
-                    ? ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24), children: const [
-                        SizedBox(height: 80),
-                        Icon(Icons.account_balance_wallet_outlined, size: 56, color: Colors.black45),
-                        SizedBox(height: 16),
-                        Center(child: Text('No tienes una caja chica abierta.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
-                      ])
-                    : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 20, 16, 120), children: [
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(18)),
-                          child: Row(children: [
-                            const Icon(Icons.account_balance_wallet, color: Colors.white, size: 30),
-                            const SizedBox(width: 14),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              const Text('Caja chica', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                              const SizedBox(height: 3),
-                              Text(_v(_caja!['referencia']), style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700)),
-                            ])),
-                          ]),
-                        ),
-                        const SizedBox(height: 18),
-                        _dato('Saldo inicial', 'S/ ${_v(_caja!['saldo_inicial'])}'),
-                        _dato('Fecha de inicio', _v(_caja!['fecha_inicio'])),
-                        _dato('Estado', cerrada ? 'CERRADA' : 'ABIERTA'),
-                        if (cerrada) _dato('Fecha de cierre', _v(_caja!['fecha_fin'])),
-                        const SizedBox(height: 8),
-                        if (!cerrada)
-                          SizedBox(height: 52, child: FilledButton.icon(onPressed: _cerrando ? null : _cerrarCaja, icon: _cerrando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.lock_outline), label: Text(_cerrando ? 'Cerrando...' : 'Cerrar caja')))
-                        else
-                          Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12)), child: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 10), Expanded(child: Text('La caja ya fue cerrada correctamente.', style: TextStyle(fontWeight: FontWeight.w600)))])),
-                      ],
+        child: contenido,
       ),
     );
   }
