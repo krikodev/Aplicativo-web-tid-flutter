@@ -3,6 +3,7 @@ import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/presentation/screens/home/dashboard_screen.dart';
 import 'package:apps_transporte/presentation/screens/home/home_screen.dart';
 import 'package:apps_transporte/presentation/screens/historial/historial_screen.dart';
+import 'package:apps_transporte/presentation/screens/caja/cerrar_caja_screen.dart';
 
 class MainLayout extends StatefulWidget {
   static const routeName = '/main';
@@ -26,6 +27,7 @@ class _MainLayoutState extends State<MainLayout> {
           DashboardScreen(),
           HomeScreen(),
           HistorialScreen(),
+          CerrarCajaScreen(),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -35,10 +37,10 @@ class _MainLayoutState extends State<MainLayout> {
   Widget _buildBottomNav() {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
+        padding: const EdgeInsets.only(bottom: 20, left: 12, right: 12),
         child: Container(
           height: 66,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
             color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(33),
@@ -70,6 +72,12 @@ class _MainLayoutState extends State<MainLayout> {
                 label: 'Historial',
                 index: 2,
               )),
+              Expanded(child: _buildNavItem(
+                icon: Icons.lock_outline,
+                activeIcon: Icons.lock,
+                label: 'Cerrar caja',
+                index: 3,
+              )),
             ],
           ),
         ),
@@ -94,16 +102,18 @@ class _MainLayoutState extends State<MainLayout> {
           Icon(
             selected ? activeIcon : icon,
             color: selected ? Colors.white : Colors.white54,
-            size: 23,
+            size: 21,
           ),
           const SizedBox(height: 3),
           Text(
             label,
             style: TextStyle(
               color: selected ? Colors.white : Colors.white54,
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
