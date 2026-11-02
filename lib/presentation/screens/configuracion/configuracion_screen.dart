@@ -47,7 +47,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       ApiConfig.forCompanyDomain(value ?? '');
       return null;
     } on FormatException {
-      return 'Dominio no autorizado. Verifica el dominio asignado a tu empresa.';
+      return 'Dominio no válido.';
     }
   }
 
@@ -101,7 +101,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
-          'Configuración inicial',
+          'Configurar empresa',
           style: TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.bold,
@@ -144,7 +144,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Configuración de empresa',
+                          'Dominio de empresa',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppColors.textDark,
@@ -155,32 +155,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'La dirección de la API es única y no se puede modificar. '
-                    'Ingresa el dominio que corresponde a esta instalación.',
-                    style: TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'URL fija de la API',
-                      prefixIcon: Icon(
-                        Icons.link,
-                        color: AppColors.textGrey,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    child: SelectableText(
-                      ApiConfig.defaultBaseUrl,
-                      style: const TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _domainController,
@@ -189,29 +163,19 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     autocorrect: false,
                     enableSuggestions: false,
                     decoration: const InputDecoration(
-                      labelText: 'Dominio de la empresa',
-                      hintText: 'empresa.com.pe',
+                      labelText: 'Dominio',
+                      hintText: 'tid.net.pe',
                       prefixIcon: Icon(
                         Icons.business_outlined,
                         color: AppColors.textGrey,
                       ),
                       border: OutlineInputBorder(),
-                      helperText: 'Ejemplo: tid.net.pe',
                     ),
                     validator: _validarDominio,
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'El dominio queda guardado en este dispositivo. '
-                    'El trabajador no podrá cambiar de empresa desde el login.',
-                    style: TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
                   CustomButton(
-                    text: 'Guardar configuración',
+                    text: 'Guardar',
                     onPressed: _guardarConfiguracion,
                     isLoading: _isLoading,
                   ),
