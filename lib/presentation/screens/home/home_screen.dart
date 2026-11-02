@@ -18,6 +18,7 @@ class HomeScreenState extends State<HomeScreen> {
   final _dniController = TextEditingController();
   final _searchFocusNode = FocusNode();
   bool _isLoading = false;
+  bool _abriendoEntrega = false;
   bool _buscarPorTracking = false;
   Timer? _temporizadorBusqueda;
   int _versionBusqueda = 0;
@@ -103,11 +104,13 @@ class HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _dniController.clear();
+      _buscarPorTracking = false;
       _encomiendas = [];
       _trackingsSeleccionados.clear();
       _isLoading = false;
     });
 
+    FocusManager.instance.primaryFocus?.unfocus();
     _searchFocusNode.unfocus();
     widget.onSelectionChanged?.call(0);
   }
@@ -152,26 +155,31 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> continuarEntrega() async {
-    if (_trackingsSeleccionados.isEmpty) return;
+    if (_trackingsSeleccionados.isEmpty || _abriendoEntrega) return;
 
-    // <-- AHORA LLAMA A COBROSCREEN, NO A EVIDENCIAS
-    final resultadoEntrega = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            CobroScreen(trackings: _trackingsSeleccionados.toList()),
-      ),
-    );
+    _abriendoEntrega = true;
 
-    if (resultadoEntrega == true && mounted) {
-      _limpiarEntregaCompletada();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Entrega completada. Lista y DNI limpiados.'),
-          behavior: SnackBarBehavior.floating,
+    try {
+      final resultadoEntrega = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              CobroScreen(trackings: _trackingsSeleccionados.toList()),
         ),
       );
+
+      if (resultadoEntrega == true && mounted) {
+        _limpiarEntregaCompletada();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Entrega completada. Datos de búsqueda limpiados.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) _abriendoEntrega = false;
     }
   }
 
