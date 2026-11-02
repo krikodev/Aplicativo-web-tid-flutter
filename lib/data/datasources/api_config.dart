@@ -3,9 +3,7 @@ class ApiConfig {
   static const String defaultBaseUrl =
       'https://api-tid.net.pe/APIAppDom_Sigtrans/';
 
-  static const String defaultCompanyDomain = 'tid.net.pe';
-
-  // Solo se permiten empresas que tienen credenciales configuradas en PHP.
+  // Dominios autorizados en el servidor PHP.
   static const Map<String, String> companies = {
     'tid.net.pe': 'TID',
     'laranaexpress.com.pe': 'La Rana Express',
@@ -21,7 +19,7 @@ class ApiConfig {
 
     if (!companies.containsKey(domain)) {
       throw const FormatException(
-        'Selecciona una empresa válida para conectarte.',
+        'El dominio ingresado no está autorizado para esta aplicación.',
       );
     }
 
