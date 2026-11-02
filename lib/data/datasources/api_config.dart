@@ -1,50 +1,39 @@
 class ApiConfig {
-  static const companyDomain = 'tid.net.pe';
-  static const defaultBaseUrl = 'https://api-tid.net.pe/APIAppDom_Sigtrans/';
+  // El servidor de API es único para todas las empresas.
+  static const String defaultBaseUrl =
+      'https://api-tid.net.pe/APIAppDom_Sigtrans/';
+
+  static const String defaultCompanyDomain = 'tid.net.pe';
+
+  // Solo se permiten empresas que tienen credenciales configuradas en PHP.
+  static const Map<String, String> companies = {
+    'tid.net.pe': 'TID',
+    'laranaexpress.com.pe': 'La Rana Express',
+  };
 
   final Uri baseUri;
+  final String companyDomain;
 
-  ApiConfig._(this.baseUri);
+  ApiConfig._(this.baseUri, this.companyDomain);
 
-  factory ApiConfig.fromBaseUrl(String value) {
-    final input = value.trim();
-    if (input.isEmpty) {
-      throw const FormatException('Configura la URL de la API de TID.');
-    }
-    if (RegExp(r'\s').hasMatch(input) || input.contains('\\')) {
+  factory ApiConfig.forCompanyDomain(String value) {
+    final domain = value.trim().toLowerCase();
+
+    if (!companies.containsKey(domain)) {
       throw const FormatException(
-        'La URL no debe contener espacios ni barras invertidas.',
+        'Selecciona una empresa válida para conectarte.',
       );
     }
 
-    final uri = Uri.tryParse(input);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-      throw const FormatException(
-        'Ingresa una URL HTTPS completa, por ejemplo '
-        'https://api-tid.net.pe/APIAppDom_Sigtrans/.',
-      );
-    }
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) {
-      throw const FormatException(
-        'La URL de la API no debe incluir credenciales, parámetros ni #.',
-      );
-    }
-    if (uri.path.toLowerCase().contains('.php')) {
-      throw const FormatException(
-        'Ingresa la carpeta de la API, sin login_usuario.php ni otro archivo.',
-      );
-    }
-
-    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
-    return ApiConfig._(uri.replace(path: '$path/'));
+    return ApiConfig._(Uri.parse(defaultBaseUrl), domain);
   }
 
-  String get baseUrl => baseUri.toString();
+  String get baseUrl => defaultBaseUrl;
 
   Uri endpoint(String filename) => baseUri.resolve(filename);
 
   Map<String, String> get headers => {
-    'Accept': 'application/json',
-    'X-Company-Domain': companyDomain,
-  };
+        'Accept': 'application/json',
+        'X-Company-Domain': companyDomain,
+      };
 }
