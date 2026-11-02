@@ -121,7 +121,9 @@ class ApiService {
     http.Client? client;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final config = ApiConfig.fromBaseUrl(prefs.getString('base_url') ?? '');
+      final config = ApiConfig.forCompanyDomain(
+        prefs.getString('company_domain') ?? ApiConfig.defaultCompanyDomain,
+      );
       url = config.endpoint(endpoint);
       client = http.Client();
       final response = await client
@@ -306,7 +308,9 @@ class ApiService {
 
     final prefs = await SharedPreferences.getInstance();
     try {
-      ApiConfig.fromBaseUrl(prefs.getString('base_url') ?? '');
+      ApiConfig.forCompanyDomain(
+        prefs.getString('company_domain') ?? ApiConfig.defaultCompanyDomain,
+      );
     } on FormatException catch (e) {
       return _failure(e.message, code: 'configuration_error');
     }
