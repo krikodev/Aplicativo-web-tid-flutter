@@ -4,7 +4,7 @@
 | --- | --- |
 | URL base | `https://api-tid.net.pe/APIAppDom_Sigtrans/` |
 | Dominios permitidos | `tid.net.pe`, `laranaexpress.com.pe` |
-| Encabezado en cada petición | `X-Company-Domain: tid.net.pe` |
+| Encabezado en cada petición | `X-Company-Domain: dominio configurado` |
 | Login | `POST https://api-tid.net.pe/APIAppDom_Sigtrans/login_usuario.php` |
 | Datos del login | Formulario con `email` y `pass` |
 
