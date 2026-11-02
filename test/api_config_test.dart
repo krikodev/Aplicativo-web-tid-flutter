@@ -2,31 +2,41 @@ import 'package:apps_transporte/data/datasources/api_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Normaliza la URL y conserva la carpeta de la API', () {
-    final config = ApiConfig.fromBaseUrl(
-      '  https://api-tid.net.pe/APIAppDom_Sigtrans///  ',
+  test('Usa siempre la URL fija de la API y envía el dominio TID', () {
+    final config = ApiConfig.forCompanyDomain('tid.net.pe');
+
+    expect(
+      config.baseUrl,
+      'https://api-tid.net.pe/APIAppDom_Sigtrans/',
     );
-    expect(config.baseUrl, ApiConfig.defaultBaseUrl);
     expect(
       config.endpoint('login_usuario.php').toString(),
-      '${ApiConfig.defaultBaseUrl}login_usuario.php',
+      'https://api-tid.net.pe/APIAppDom_Sigtrans/login_usuario.php',
     );
     expect(config.headers['X-Company-Domain'], 'tid.net.pe');
   });
 
-  for (final invalid in [
+  test('Permite seleccionar La Rana Express sin cambiar la URL de API', () {
+    final config = ApiConfig.forCompanyDomain('laranaexpress.com.pe');
+
+    expect(
+      config.baseUrl,
+      'https://api-tid.net.pe/APIAppDom_Sigtrans/',
+    );
+    expect(config.headers['X-Company-Domain'], 'laranaexpress.com.pe');
+  });
+
+  for (final invalidDomain in [
     '',
-    'api-tid.net.pe/APIAppDom_Sigtrans/',
-    'http://api-tid.net.pe/APIAppDom_Sigtrans/',
-    'https://api-tid.net.pe/APIAppDom Sigtrans/',
-    r'https:\\api-tid.net.pe\APIAppDom_Sigtrans\',
-    'https://user:secret@api-tid.net.pe/APIAppDom_Sigtrans/',
-    '${ApiConfig.defaultBaseUrl}?company=tid.net.pe',
-    '${ApiConfig.defaultBaseUrl}#login',
-    '${ApiConfig.defaultBaseUrl}login_usuario.php',
+    'www.laranaexpress.com.pe',
+    'https://laranaexpress.com.pe',
+    'empresa-no-registrada.com',
   ]) {
-    test('Rechaza una URL incompleta o inválida: $invalid', () {
-      expect(() => ApiConfig.fromBaseUrl(invalid), throwsFormatException);
+    test('Rechaza el dominio no autorizado: $invalidDomain', () {
+      expect(
+        () => ApiConfig.forCompanyDomain(invalidDomain),
+        throwsFormatException,
+      );
     });
   }
 }
