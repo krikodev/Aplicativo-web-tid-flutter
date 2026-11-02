@@ -8,11 +8,13 @@
 | Login | `POST https://api-tid.net.pe/APIAppDom_Sigtrans/login_usuario.php` |
 | Datos del login | Formulario con `email` y `pass` |
 
-La URL base es fija en Flutter y no se puede editar desde la app. En la pantalla
-**Cambiar empresa** se selecciona `tid.net.pe` o `laranaexpress.com.pe`; ese valor
-se envía como `X-Company-Domain`. El PHP valida el dominio y, desde
-`config/conexion.php`, selecciona la base de datos y credenciales de esa empresa.
-No se debe enviar `api-tid.net.pe` ni una URL completa como dominio de empresa.
+La URL base es fija en Flutter y no se puede editar desde la app. Durante la
+configuración inicial del dispositivo, el instalador autorizado escribe el
+dominio exacto de la empresa (`tid.net.pe` o `laranaexpress.com.pe`). El valor
+se valida contra una lista permitida y se envía como `X-Company-Domain`. Tras
+guardarlo, no aparece una opción para cambiar de empresa en el login del
+trabajador. El PHP valida el dominio y selecciona las credenciales de su BD.
+No se debe escribir `api-tid.net.pe` ni una URL completa como dominio de empresa.
 
 ## Diagnóstico de la captura
 
@@ -49,8 +51,9 @@ de producción.
    Si funciona en una red y falla en la otra, revisa el DNS de esa red. Si
    configuraste un DNS privado o una VPN, prueba temporalmente con DNS
    automático y sin la VPN, y después restablece tu configuración habitual.
-3. En la aplicación, abre **Cambiar empresa**, selecciona TID o La Rana Express
-y guarda. La URL de API aparece como dato fijo y no se puede modificar.
+3. En la primera instalación, el responsable escribe el dominio exacto asignado
+a ese dispositivo. La URL de API aparece como dato fijo. El trabajador no tiene
+un control para cambiar el dominio desde el login.
 4. Cierra completamente y vuelve a abrir la aplicación, y prueba el login.
    Si sigue apareciendo el error DNS, compara con la prueba de Chrome en esa
    misma red. Los ajustes de Flutter no crean registros DNS en el hosting.
@@ -74,7 +77,9 @@ validación HTTPS para resolver un error DNS.
 
 - URL HTTPS fija para el servidor compartido de API, conservando la carpeta
   `APIAppDom_Sigtrans`.
-- Dominio de empresa seleccionable: `tid.net.pe` o `laranaexpress.com.pe`.
+- Dominio de empresa ingresado manualmente durante la configuración inicial:
+  `tid.net.pe` o `laranaexpress.com.pe`, validado contra una lista permitida.
+- No se permite cambiar de empresa desde el login del trabajador.
 - El PHP centraliza la conexión de TID y La Rana Express en `config/conexion.php`.
 - Errores diferenciados para DNS, conexión, certificado, tiempo de espera,
   estado HTTP y respuestas vacías o que no son objetos JSON.
@@ -84,7 +89,9 @@ validación HTTPS para resolver un error DNS.
   no devuelve uno nuevo.
 - Las consultas y las entregas conservan los nombres de los endpoints y
   campos existentes. No se reintenta automáticamente una entrega o un cobro.
-- Cambiar la configuración elimina los IDs de la sesión anterior.
+- La configuración inicial elimina cualquier ID de sesión anterior. Para cambiar
+la empresa asignada, el responsable debe volver a preparar el dispositivo; no
+hay selector de empresa disponible para el trabajador.
 
 Si MySQL está en el mismo servidor que ejecuta PHP, `host = localhost` es
 correcto: se refiere al servidor PHP, no al celular. Si la base de datos está
