@@ -206,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           size: 16,
                         ),
                         label: const Text(
-                          'Configurar Servidor',
+                          'Cambiar empresa',
                           style: TextStyle(
                             color: Colors.grey,
                             fontSize: 13,
