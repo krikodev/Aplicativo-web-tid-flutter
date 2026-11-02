@@ -27,7 +27,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({
-      'company_domain': ApiConfig.defaultCompanyDomain,
+      'company_domain': 'tid.net.pe',
     });
   });
 
