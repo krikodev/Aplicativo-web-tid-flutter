@@ -27,8 +27,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({
-      'base_url': ApiConfig.defaultBaseUrl,
-      'company_domain': 'old-company.example',
+      'company_domain': ApiConfig.defaultCompanyDomain,
     });
   });
 
@@ -56,6 +55,30 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('id_usuario'), '42');
     expect(prefs.getString('id_terminal'), '3');
+  });
+
+  test('El login envía el dominio de La Rana Express a la misma API fija', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('company_domain', 'laranaexpress.com.pe');
+
+    final result = await loginWith(
+      MockClient((request) async {
+        expect(
+          request.url.toString(),
+          '${ApiConfig.defaultBaseUrl}login_usuario.php',
+        );
+        expect(
+          request.headers['X-Company-Domain'],
+          'laranaexpress.com.pe',
+        );
+        return jsonResponse({
+          'success': true,
+          'user': {'id_usuario': 84},
+        });
+      }),
+    );
+
+    expect(result['success'], true);
   });
 
   test('Un rechazo de PHP con error también se muestra como message', () async {
@@ -152,11 +175,11 @@ void main() {
     expect(requests, 1);
   });
 
-  test('Una URL inválida se rechaza antes de enviar la petición', () async {
-    SharedPreferences.setMockInitialValues({'base_url': 'not-a-url'});
+  test('Un dominio no autorizado se rechaza antes de enviar la petición', () async {
+    SharedPreferences.setMockInitialValues({'company_domain': 'empresa-invalida.com'});
     final result = await loginWith(
       MockClient((_) async {
-        fail('No debe contactar al servidor con una URL inválida.');
+        fail('No debe contactar al servidor con un dominio no autorizado.');
       }),
     );
     expect(result['error_code'], 'configuration_error');
