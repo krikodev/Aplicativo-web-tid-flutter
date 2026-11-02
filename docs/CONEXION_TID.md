@@ -3,14 +3,16 @@
 | Configuración | Valor |
 | --- | --- |
 | URL base | `https://api-tid.net.pe/APIAppDom_Sigtrans/` |
-| Empresa | `tid.net.pe` |
+| Dominios permitidos | `tid.net.pe`, `laranaexpress.com.pe` |
 | Encabezado en cada petición | `X-Company-Domain: tid.net.pe` |
 | Login | `POST https://api-tid.net.pe/APIAppDom_Sigtrans/login_usuario.php` |
 | Datos del login | Formulario con `email` y `pass` |
 
-La app usa la URL base para contactar al servidor. El PHP usa el encabezado
-`X-Company-Domain` para seleccionar la configuración de TID. Son valores
-distintos: no se debe enviar `api-tid.net.pe` ni una URL completa como empresa.
+La URL base es fija en Flutter y no se puede editar desde la app. En la pantalla
+**Cambiar empresa** se selecciona `tid.net.pe` o `laranaexpress.com.pe`; ese valor
+se envía como `X-Company-Domain`. El PHP valida el dominio y, desde
+`config/conexion.php`, selecciona la base de datos y credenciales de esa empresa.
+No se debe enviar `api-tid.net.pe` ni una URL completa como dominio de empresa.
 
 ## Diagnóstico de la captura
 
@@ -47,8 +49,8 @@ de producción.
    Si funciona en una red y falla en la otra, revisa el DNS de esa red. Si
    configuraste un DNS privado o una VPN, prueba temporalmente con DNS
    automático y sin la VPN, y después restablece tu configuración habitual.
-3. En la aplicación, abre **Configurar Servidor**, ingresa la URL base de la
-   tabla y guarda. La empresa se muestra fija como `tid.net.pe`.
+3. En la aplicación, abre **Cambiar empresa**, selecciona TID o La Rana Express
+y guarda. La URL de API aparece como dato fijo y no se puede modificar.
 4. Cierra completamente y vuelve a abrir la aplicación, y prueba el login.
    Si sigue apareciendo el error DNS, compara con la prueba de Chrome en esa
    misma red. Los ajustes de Flutter no crean registros DNS en el hosting.
@@ -70,9 +72,10 @@ validación HTTPS para resolver un error DNS.
 
 ## Cambios de esta rama
 
-- Dominio de empresa fijo para TID en todas las peticiones a la API PHP.
-- URL HTTPS validada y barra final normalizada, conservando la carpeta
+- URL HTTPS fija para el servidor compartido de API, conservando la carpeta
   `APIAppDom_Sigtrans`.
+- Dominio de empresa seleccionable: `tid.net.pe` o `laranaexpress.com.pe`.
+- El PHP centraliza la conexión de TID y La Rana Express en `config/conexion.php`.
 - Errores diferenciados para DNS, conexión, certificado, tiempo de espera,
   estado HTTP y respuestas vacías o que no son objetos JSON.
 - Compatibilidad con respuestas PHP que usan `error` o `message`.
@@ -90,17 +93,14 @@ contraseñas de la base de datos en este repositorio.
 
 ## Compilar y validar
 
-En tu carpeta del proyecto:
+En tu carpeta del proyecto, actualiza la rama principal:
 
 ```powershell
-git fetch origin
-git switch --track origin/fix/tid-api-production-connection
+git pull origin main
 flutter pub get
 flutter test
 flutter run
 ```
-
-Si ya tienes la rama local, usa `git switch fix/tid-api-production-connection`.
 Para generar el APK de producción con el permiso corregido:
 
 ```powershell
