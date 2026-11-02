@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/core/widgets/custom_button.dart';
-import 'package:apps_transporte/core/widgets/custom_text_field.dart';
 import 'package:apps_transporte/data/datasources/api_config.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
@@ -16,9 +15,7 @@ class ConfiguracionScreen extends StatefulWidget {
 
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _baseUrlController = TextEditingController(
-    text: ApiConfig.defaultBaseUrl,
-  );
+  String _companyDomain = ApiConfig.defaultCompanyDomain;
   bool _isLoading = false;
 
   @override
@@ -27,48 +24,48 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     _cargarConfiguracionActual();
   }
 
-  @override
-  void dispose() {
-    _baseUrlController.dispose();
-    super.dispose();
-  }
-
   Future<void> _cargarConfiguracionActual() async {
     final prefs = await SharedPreferences.getInstance();
-    final baseUrlGuardada = prefs.getString('base_url') ?? '';
+    final savedDomain =
+        prefs.getString('company_domain') ?? ApiConfig.defaultCompanyDomain;
 
-    if (mounted) {
-      setState(() {
-        if (baseUrlGuardada.isNotEmpty) {
-          _baseUrlController.text = baseUrlGuardada;
-        }
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _companyDomain = ApiConfig.companies.containsKey(savedDomain)
+          ? savedDomain
+          : ApiConfig.defaultCompanyDomain;
+    });
   }
 
   Future<void> _guardarConfiguracion() async {
     if (_isLoading || !_formKey.currentState!.validate()) return;
-    final config = ApiConfig.fromBaseUrl(_baseUrlController.text);
 
+    final config = ApiConfig.forCompanyDomain(_companyDomain);
     setState(() => _isLoading = true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
       final changed =
-          prefs.getString('base_url') != config.baseUrl ||
-          prefs.getString('company_domain') != ApiConfig.companyDomain;
+          prefs.getString('company_domain') != config.companyDomain;
+
+      // Si cambia de empresa, no reutilizar la sesión ni el usuario anterior.
       if (changed) {
         await prefs.remove('id_usuario');
         await prefs.remove('id_terminal');
         await prefs.remove('is_logged_in');
       }
-      await prefs.setString('company_domain', ApiConfig.companyDomain);
-      await prefs.setString('base_url', config.baseUrl);
+
+      await prefs.setString('company_domain', config.companyDomain);
+
+      // Elimina cualquier URL antigua guardada por versiones anteriores.
+      await prefs.remove('base_url');
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Configuración guardada. Inicia sesión para probarla.'),
+          content: Text('Empresa guardada. Inicia sesión para continuar.'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -77,7 +74,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo guardar la configuración.'),
+          content: Text('No se pudo guardar la empresa.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -92,7 +89,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
-          "Configuración",
+          'Configuración',
           style: TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.bold,
@@ -106,7 +103,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -134,7 +131,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       ),
                       SizedBox(width: 12),
                       Text(
-                        "Conexión de Servidor",
+                        'Conexión de empresa',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.textDark,
@@ -145,46 +142,68 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Ingresa la URL HTTPS de la API de TID.',
-                    style: TextStyle(color: AppColors.textGrey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // NUEVO INPUT: URL del servidor
-                  CustomTextField(
-                    controller: _baseUrlController,
-                    label: 'URL del Servidor API',
-                    hintText: ApiConfig.defaultBaseUrl,
-                    prefixIcon: const Icon(
-                      Icons.link,
+                    'La dirección de la API es fija. Selecciona la empresa '
+                    'a la que pertenece tu usuario.',
+                    style: TextStyle(
                       color: AppColors.textGrey,
+                      fontSize: 13,
                     ),
-                    keyboardType: TextInputType.url,
-                    validator: (value) {
-                      try {
-                        ApiConfig.fromBaseUrl(value ?? '');
-                        return null;
-                      } on FormatException catch (e) {
-                        return e.message;
-                      }
-                    },
                   ),
-                  const SizedBox(height: 16),
-
-                  const InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Empresa',
+                  const SizedBox(height: 24),
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'URL fija de la API',
                       prefixIcon: Icon(
-                        Icons.language,
+                        Icons.link,
                         color: AppColors.textGrey,
                       ),
+                      border: OutlineInputBorder(),
                     ),
-                    child: Text(ApiConfig.companyDomain),
+                    child: SelectableText(
+                      ApiConfig.defaultBaseUrl,
+                      style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 32),
-
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    value: _companyDomain,
+                    decoration: const InputDecoration(
+                      labelText: 'Dominio de la empresa',
+                      prefixIcon: Icon(
+                        Icons.business_outlined,
+                        color: AppColors.textGrey,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ApiConfig.companies.entries
+                        .map(
+                          (entry) => DropdownMenuItem<String>(
+                            value: entry.key,
+                            child: Text(
+                              '${entry.value} (${entry.key})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isLoading
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _companyDomain = value);
+                            }
+                          },
+                    validator: (value) =>
+                        value == null || !ApiConfig.companies.containsKey(value)
+                            ? 'Selecciona una empresa válida.'
+                            : null,
+                  ),
+                  const SizedBox(height: 28),
                   CustomButton(
-                    text: 'Guardar configuración',
+                    text: 'Guardar empresa',
                     onPressed: _guardarConfiguracion,
                     isLoading: _isLoading,
                   ),
