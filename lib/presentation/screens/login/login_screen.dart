@@ -194,26 +194,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      TextButton.icon(
-                        onPressed: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.configuracion,
-                        ),
-                        icon: const Icon(
-                          Icons.settings,
-                          color: Colors.grey,
-                          size: 16,
-                        ),
-                        label: const Text(
-                          'Cambiar empresa',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
