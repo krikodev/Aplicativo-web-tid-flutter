@@ -15,66 +15,78 @@ class ConfiguracionScreen extends StatefulWidget {
 
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _companyDomain = ApiConfig.defaultCompanyDomain;
+  final _domainController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarConfiguracionActual();
+    _cargarConfiguracionInicial();
   }
 
-  Future<void> _cargarConfiguracionActual() async {
+  @override
+  void dispose() {
+    _domainController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarConfiguracionInicial() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedDomain =
-        prefs.getString('company_domain') ?? ApiConfig.defaultCompanyDomain;
+    final savedDomain = prefs.getString('company_domain');
 
     if (!mounted) return;
 
-    setState(() {
-      _companyDomain = ApiConfig.companies.containsKey(savedDomain)
-          ? savedDomain
-          : ApiConfig.defaultCompanyDomain;
-    });
+    // En una instalación nueva el dominio debe ingresarse manualmente.
+    if (savedDomain != null && ApiConfig.companies.containsKey(savedDomain)) {
+      _domainController.text = savedDomain;
+    }
+  }
+
+  String? _validarDominio(String? value) {
+    try {
+      ApiConfig.forCompanyDomain(value ?? '');
+      return null;
+    } on FormatException {
+      return 'Dominio no autorizado. Verifica el dominio asignado a tu empresa.';
+    }
   }
 
   Future<void> _guardarConfiguracion() async {
     if (_isLoading || !_formKey.currentState!.validate()) return;
 
-    final config = ApiConfig.forCompanyDomain(_companyDomain);
+    final config = ApiConfig.forCompanyDomain(_domainController.text);
+
     setState(() => _isLoading = true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final changed =
-          prefs.getString('company_domain') != config.companyDomain;
 
-      // Si cambia de empresa, no reutilizar la sesión ni el usuario anterior.
-      if (changed) {
-        await prefs.remove('id_usuario');
-        await prefs.remove('id_terminal');
-        await prefs.remove('is_logged_in');
-      }
+      // Esta pantalla es de configuración inicial del dispositivo.
+      // Siempre elimina cualquier sesión anterior antes de asociarlo a una empresa.
+      await prefs.remove('id_usuario');
+      await prefs.remove('id_terminal');
+      await prefs.remove('is_logged_in');
 
       await prefs.setString('company_domain', config.companyDomain);
 
-      // Elimina cualquier URL antigua guardada por versiones anteriores.
+      // Elimina URL editables guardadas por versiones antiguas.
       await prefs.remove('base_url');
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Empresa guardada. Inicia sesión para continuar.'),
+          content: Text('Empresa configurada. Inicia sesión con tu usuario.'),
           backgroundColor: AppColors.success,
         ),
       );
+
       Navigator.pushReplacementNamed(context, '/login');
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo guardar la empresa.'),
+          content: Text('No se pudo guardar la configuración inicial.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -89,7 +101,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
-          'Configuración',
+          'Configuración inicial',
           style: TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.bold,
@@ -99,7 +111,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: AppColors.textDark),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -130,20 +142,22 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         size: 28,
                       ),
                       SizedBox(width: 12),
-                      Text(
-                        'Conexión de empresa',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
-                          fontSize: 16,
+                      Expanded(
+                        child: Text(
+                          'Configuración de empresa',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'La dirección de la API es fija. Selecciona la empresa '
-                    'a la que pertenece tu usuario.',
+                    'La dirección de la API es única y no se puede modificar. '
+                    'Ingresa el dominio que corresponde a esta instalación.',
                     style: TextStyle(
                       color: AppColors.textGrey,
                       fontSize: 13,
@@ -168,42 +182,36 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  DropdownButtonFormField<String>(
-                    value: _companyDomain,
+                  TextFormField(
+                    controller: _domainController,
+                    keyboardType: TextInputType.url,
+                    textCapitalization: TextCapitalization.none,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     decoration: const InputDecoration(
                       labelText: 'Dominio de la empresa',
+                      hintText: 'empresa.com.pe',
                       prefixIcon: Icon(
                         Icons.business_outlined,
                         color: AppColors.textGrey,
                       ),
                       border: OutlineInputBorder(),
+                      helperText: 'Ejemplo: tid.net.pe',
                     ),
-                    items: ApiConfig.companies.entries
-                        .map(
-                          (entry) => DropdownMenuItem<String>(
-                            value: entry.key,
-                            child: Text(
-                              '${entry.value} (${entry.key})',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _isLoading
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _companyDomain = value);
-                            }
-                          },
-                    validator: (value) =>
-                        value == null || !ApiConfig.companies.containsKey(value)
-                            ? 'Selecciona una empresa válida.'
-                            : null,
+                    validator: _validarDominio,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'El dominio queda guardado en este dispositivo. '
+                    'El trabajador no podrá cambiar de empresa desde el login.',
+                    style: TextStyle(
+                      color: AppColors.textGrey,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 28),
                   CustomButton(
-                    text: 'Guardar empresa',
+                    text: 'Guardar configuración',
                     onPressed: _guardarConfiguracion,
                     isLoading: _isLoading,
                   ),
