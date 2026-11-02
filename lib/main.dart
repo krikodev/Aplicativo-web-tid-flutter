@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
 import 'package:apps_transporte/presentation/routes/app_routes.dart';
+import 'package:apps_transporte/data/datasources/api_config.dart';
 
 // Empezamos por defecto en la pantalla de configuración (o splash)
 String initialRoute = AppRoutes.configuracion;
@@ -17,7 +18,8 @@ void main() async {
   // 2. Verificamos si el usuario ya inició sesión (puedes ajustar el nombj de tu variable)
   final estaLogueado = prefs.getBool('is_logged_in') ?? false;
 
-  if (dominioGuardado != null && dominioGuardado.isNotEmpty) {
+  if (dominioGuardado != null &&
+      ApiConfig.companies.containsKey(dominioGuardado)) {
     if (estaLogueado) {
       // Si ya configuró empresa y ya hizo login, va directo al trabajo
       initialRoute = AppRoutes.mainLayout;
