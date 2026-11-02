@@ -83,6 +83,8 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
 
   // MODIFICADO: finalizar entrega con fotos y firma separadas.
   Future<void> _finalizarEntrega() async {
+    if (_isUploading) return;
+
     if (_fotos.length != fotosRequeridas) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -169,7 +171,9 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
           ),
         );
 
-        Navigator.pop(context, true);
+        _fotos.clear();
+        _firmaController.clear();
+        Navigator.of(context).pop(true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
