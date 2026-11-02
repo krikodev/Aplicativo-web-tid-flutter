@@ -2,8 +2,8 @@ import 'package:apps_transporte/data/datasources/api_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Usa siempre la URL fija de la API y envía el dominio TID', () {
-    final config = ApiConfig.forCompanyDomain('tid.net.pe');
+  test('La URL siempre es fija y usa el dominio TID ingresado', () {
+    final config = ApiConfig.forCompanyDomain(' TID.NET.PE ');
 
     expect(
       config.baseUrl,
@@ -16,7 +16,7 @@ void main() {
     expect(config.headers['X-Company-Domain'], 'tid.net.pe');
   });
 
-  test('Permite seleccionar La Rana Express sin cambiar la URL de API', () {
+  test('Acepta el dominio de La Rana Express escrito manualmente', () {
     final config = ApiConfig.forCompanyDomain('laranaexpress.com.pe');
 
     expect(
@@ -31,6 +31,7 @@ void main() {
     'www.laranaexpress.com.pe',
     'https://laranaexpress.com.pe',
     'empresa-no-registrada.com',
+    'tid.net.pe/otra-ruta',
   ]) {
     test('Rechaza el dominio no autorizado: $invalidDomain', () {
       expect(
