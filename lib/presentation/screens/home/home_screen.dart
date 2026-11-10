@@ -34,9 +34,11 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _buscar({String? consulta}) async {
+    _temporizadorBusqueda?.cancel();
     final termino = (consulta ?? _dniController.text).trim();
 
-    if (termino.length < 3) {
+    if (_buscarPorTracking ? termino.length < 3 :
+        !RegExp(r'^(?:[0-9]{8}|[0-9]{11})$').hasMatch(termino)) {
       _limpiarResultados();
       return;
     }
@@ -48,7 +50,10 @@ class HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final result = await ApiService.getEncomiendasPorDni(termino);
+      final result = await ApiService.buscarEncomiendas(
+        termino,
+        tipo: _buscarPorTracking ? 'tracking' : 'documento',
+      );
 
       if (!mounted || versionActual != _versionBusqueda) return;
 
@@ -136,22 +141,22 @@ class HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // DNI: búsqueda automática únicamente al completar los 8 dígitos.
+    // DNI (8) y RUC (11). Un pequeño retraso evita consultar un RUC
+    // prematuramente al llegar a ocho dígitos.
     if (!_buscarPorTracking) {
-      final soloNumeros = termino.replaceAll(RegExp(r'\D'), '');
-
-      if (soloNumeros.length == 8) {
-        _buscar(consulta: soloNumeros);
-      } else if (soloNumeros.length > 8) {
-        _limpiarResultados();
-      } else {
-        _limpiarResultados();
+      final valido = RegExp(r'^(?:[0-9]{8}|[0-9]{11})$').hasMatch(termino);
+      _limpiarResultados();
+      if (valido) {
+        _temporizadorBusqueda = Timer(
+          const Duration(milliseconds: 450),
+          () => _buscar(consulta: termino),
+        );
       }
       return;
     }
 
-    // Tracking: no hacemos búsquedas parciales.
-    // El usuario confirma con el teclado para evitar consultas innecesarias.
+    // Tracking: el usuario confirma con el teclado.
+    _limpiarResultados();
   }
 
   Future<void> continuarEntrega() async {
@@ -264,7 +269,7 @@ class HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: _buildSearchMode(
-                            label: 'DNI',
+                            label: 'DNI / RUC',
                             icon: Icons.badge_outlined,
                             selected: !_buscarPorTracking,
                             onTap: () => _cambiarModo(false),
@@ -322,7 +327,7 @@ class HomeScreenState extends State<HomeScreen> {
                             decoration: InputDecoration(
                               hintText: _buscarPorTracking
                                   ? 'Código de tracking'
-                                  : 'DNI del destinatario',
+                                  : 'DNI o RUC (8 u 11 dígitos)',
                               hintStyle: const TextStyle(
                                 color: AppColors.textGrey,
                                 fontSize: 14,
@@ -366,7 +371,7 @@ class HomeScreenState extends State<HomeScreen> {
                     const Padding(
                       padding: EdgeInsets.only(left: 4, top: 7),
                       child: Text(
-                        'La búsqueda inicia al completar 8 dígitos',
+                        'Se busca con 8 dígitos (DNI) u 11 (RUC)',
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textGrey,
@@ -404,7 +409,7 @@ class HomeScreenState extends State<HomeScreen> {
               child: _encomiendas.isEmpty
                   ? const Center(
                       child: Text(
-                        'Busca por DNI o tracking',
+                        'Busca por DNI, RUC o tracking',
                         style: TextStyle(color: AppColors.textGrey),
                       ),
                     )
@@ -427,6 +432,7 @@ class HomeScreenState extends State<HomeScreen> {
                           destinatario: item['destinatario'] ?? 'Desconocido',
                           remitente: item['remitente'] ?? 'Desconocido',
                           estado: item['estado']?.toString() ?? 'Pendiente',
+                          estadoPago: item['estado_pago']?.toString() ?? '',
                           isSelected: isSelected,
                           onTap: () async {
                             if (_isLoading) return;
@@ -499,6 +505,7 @@ class HomeScreenState extends State<HomeScreen> {
     required String destinatario,
     required String remitente,
     required String estado,
+    required String estadoPago,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
@@ -591,6 +598,20 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
               ],
             ),
+            if (estadoPago.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Modalidad: ${estadoPago.toUpperCase()}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

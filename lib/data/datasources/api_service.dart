@@ -242,7 +242,33 @@ class ApiService {
     );
   }
 
-  // --- OBTENER ENCOMIENDAS POR DNI ---
+  // --- BUSCAR ENCOMIENDAS POR DNI, RUC O TRACKING ---
+  // La clave "dni" se conserva para compatibilidad con la API existente.
+  static Future<Map<String, dynamic>> buscarEncomiendas(
+    String termino, {
+    required String tipo,
+  }) async {
+    if (tipo != 'documento' && tipo != 'tracking') {
+      return _failure('Tipo de búsqueda no válido.', code: 'invalid_search');
+    }
+    final valor = termino.trim();
+    if (tipo == 'documento' &&
+        !RegExp(r'^(?:[0-9]{8}|[0-9]{11})$').hasMatch(valor)) {
+      return _failure(
+        'Ingresa un DNI de 8 dígitos o un RUC de 11 dígitos.',
+        code: 'invalid_document',
+      );
+    }
+    if (tipo == 'tracking' && valor.length < 3) {
+      return _failure('Ingresa un tracking válido.', code: 'invalid_tracking');
+    }
+    return _postJson(
+      'get_encomiendas_dni.php',
+      body: {'dni': valor, 'tipo': tipo},
+    );
+  }
+
+  // API antigua conservada para clientes y pruebas previas.
   static Future<Map<String, dynamic>> getEncomiendasPorDni(String dni) async {
     return _postJson('get_encomiendas_dni.php', body: {'dni': dni.trim()});
   }

@@ -18,7 +18,7 @@ dependencies:
   flutter_riverpod: ^2.4.9
   shared_preferences: ^2.2.2
   http: ^1.4.0
-  intl: 0.20.2           # Crucial para formatear fechas
+  intl: ^0.20.3          # Compatible con flutter_localizations del SDK estable
   url_launcher: ^6.2.1    # Crucial para abrir enlaces de Cloudinary
   
   # Archivos y Rutas
