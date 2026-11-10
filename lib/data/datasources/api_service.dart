@@ -242,7 +242,177 @@ class ApiService {
     );
   }
 
-  // --- OBTENER ENCOMIENDAS POR DNI ---
+  // --- BUSCAR ENCOMIENDAS POR DNI, RUC O TRACKING ---
+  // La clave "dni" se conserva para compatibilidad con la API existente.
+  static Future<Map<String, dynamic>> buscarEncomiendas(
+    String termino, {
+    required String tipo,
+  }) async {
+    if (tipo != 'documento' && tipo != 'tracking') {
+      return _failure('Tipo de búsqueda no válido.', code: 'invalid_search');
+    }
+    final valor = termino.trim();
+    if (tipo == 'documento' &&
+        !RegExp(r'^(?:[0-9]{8}|[0-9]{11})
+
+  // --- SUBIR FOTO A CLOUDINARY ---
+  static Future<String?> _subirFotoCloudinary(XFile foto) async {
+    final url = Uri.parse(
+      'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
+    );
+    try {
+      var request = http.MultipartRequest('POST', url)
+        ..fields['upload_preset'] = _uploadPreset
+        ..files.add(await http.MultipartFile.fromPath('file', foto.path));
+
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        var responseData = await response.stream.bytesToString();
+        return jsonDecode(responseData)['secure_url'];
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  // NUEVO: firma y descuento se envían por separado.
+  static Future<Map<String, dynamic>> registrarEntregaLote({
+    required List<String> trackings,
+    required List<XFile> fotos,
+    required XFile? firma,
+    required double montoCobrado,
+    required double descuento,
+    required int? idMedioPago,
+  }) async {
+    if (trackings.isEmpty) {
+      return {
+        'success': false,
+        'error': 'No se recibieron códigos de seguimiento.',
+      };
+    }
+
+    if (fotos.isEmpty) {
+      return {'success': false, 'error': 'Debes tomar al menos una foto.'};
+    }
+
+    if (montoCobrado < 0 || descuento < 0) {
+      return {
+        'success': false,
+        'error': 'El monto y el descuento no pueden ser negativos.',
+      };
+    }
+    // NUEVO: validar el medio de pago cuando hay un cobro.
+    if (montoCobrado > 0 && ![1, 2, 3].contains(idMedioPago)) {
+      return {'success': false, 'error': 'Selecciona EFECTIVO, YAPE o PLIN.'};
+    }
+
+    if (montoCobrado == 0 && idMedioPago != null) {
+      return {
+        'success': false,
+        'error': 'No debes seleccionar un medio de pago si no hay cobro.',
+      };
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      ApiConfig.forCompanyDomain(
+        prefs.getString('company_domain') ?? '',
+      );
+    } on FormatException catch (e) {
+      return _failure(e.message, code: 'configuration_error');
+    }
+
+    // MODIFICADO: no usar un usuario predeterminado.
+    final idUsuario = prefs.get('id_usuario')?.toString();
+
+    if (idUsuario == null || idUsuario.trim().isEmpty) {
+      return {
+        'success': false,
+        'error':
+            'No se encontró el usuario autenticado. Inicia sesión nuevamente.',
+      };
+    }
+
+    // NUEVO: subir las fotos por separado.
+    final List<String> urlsFotos = [];
+
+    for (final foto in fotos) {
+      final urlFoto = await _subirFotoCloudinary(foto);
+
+      if (urlFoto == null) {
+        return {
+          'success': false,
+          'error': 'No se pudo subir una de las fotos de evidencia.',
+        };
+      }
+
+      urlsFotos.add(urlFoto);
+    }
+
+    // NUEVO: subir la firma por separado, si se proporcionó.
+    String? urlFirma;
+
+    if (firma != null) {
+      urlFirma = await _subirFotoCloudinary(firma);
+
+      if (urlFirma == null) {
+        return {
+          'success': false,
+          'error': 'No se pudo subir la firma del receptor.',
+        };
+      }
+    }
+
+    return _post(
+      'api_procesar_entrega_cobro.php',
+      body: {
+        'trackings': jsonEncode(trackings),
+        'urls_fotos': jsonEncode(urlsFotos),
+        'url_firma': urlFirma ?? '',
+        'monto_cobrado': montoCobrado.toStringAsFixed(2),
+        'descuento': descuento.toStringAsFixed(2),
+        'id_usuario': idUsuario,
+        'id_medio_pago': idMedioPago?.toString() ?? '',
+      },
+    );
+  }
+
+
+  // --- OBTENER HISTORIAL DE ENTREGADAS ---
+  static Future<Map<String, dynamic>> getHistorialEntregadas({
+    String filtro = '',
+    required String fecha,
+  }) async {
+    return _postJson(
+      'get_historial.php',
+      body: {'filtro': filtro.trim(), 'fecha': fecha},
+    );
+  }
+
+  // --- OBTENER DEUDA ---
+  static Future<Map<String, dynamic>> obtenerDeuda(
+    List<String> trackings,
+  ) async {
+    return _postJson('api_obtener_deuda.php', body: {'trackings': trackings});
+  }
+}
+).hasMatch(valor)) {
+      return _failure(
+        'Ingresa un DNI de 8 dígitos o un RUC de 11 dígitos.',
+        code: 'invalid_document',
+      );
+    }
+    if (tipo == 'tracking' && valor.length < 3) {
+      return _failure('Ingresa un tracking válido.', code: 'invalid_tracking');
+    }
+    return _postJson(
+      'get_encomiendas_dni.php',
+      body: {'dni': valor, 'tipo': tipo},
+    );
+  }
+
+  // API antigua conservada para clientes y pruebas previas.
   static Future<Map<String, dynamic>> getEncomiendasPorDni(String dni) async {
     return _postJson('get_encomiendas_dni.php', body: {'dni': dni.trim()});
   }
