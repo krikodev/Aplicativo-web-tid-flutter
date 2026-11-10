@@ -206,6 +206,59 @@ void main() {
     expect(prefs.containsKey('id_terminal'), false);
   });
 
+  test('Busca DNI de 8 dígitos y RUC 10/20 de 11 dígitos', () async {
+    final consultas = <Map<String, dynamic>>[];
+    await http.runWithClient(
+      () async {
+        for (final doc in ['12345678', '10123456789', '20123456789']) {
+          final result = await ApiService.buscarEncomiendas(
+            doc,
+            tipo: 'documento',
+          );
+          expect(result['success'], true);
+        }
+      },
+      () => MockClient((request) async {
+        expect(request.url.pathSegments.last, 'get_encomiendas_dni.php');
+        expect(request.headers['X-Company-Domain'], 'tid.net.pe');
+        consultas.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return jsonResponse({'success': true, 'data': []});
+      }),
+    );
+    expect(consultas, [
+      {'dni': '12345678', 'tipo': 'documento'},
+      {'dni': '10123456789', 'tipo': 'documento'},
+      {'dni': '20123456789', 'tipo': 'documento'},
+    ]);
+  });
+
+  test('Rechaza documentos incompletos sin contactar al servidor', () async {
+    for (final value in ['1234567', '123456789', '1234567890',
+      '123456789012', 'abc12345']) {
+      final result = await http.runWithClient(
+        () => ApiService.buscarEncomiendas(value, tipo: 'documento'),
+        () => MockClient((_) async {
+          fail('No debe consultar el backend con un documento inválido');
+        }),
+      );
+      expect(result['error_code'], 'invalid_document');
+    }
+  });
+
+  test('Tracking explícito conserva la búsqueda por código', () async {
+    final result = await http.runWithClient(
+      () => ApiService.buscarEncomiendas(' TID-001 ', tipo: 'tracking'),
+      () => MockClient((request) async {
+        expect(jsonDecode(request.body), {
+          'dni': 'TID-001',
+          'tipo': 'tracking',
+        });
+        return jsonResponse({'success': true, 'data': []});
+      }),
+    );
+    expect(result['success'], true);
+  });
+
   test('Las consultas conservan rutas, JSON y el dominio de TID', () async {
     final requests = <http.Request>[];
     await http.runWithClient(
