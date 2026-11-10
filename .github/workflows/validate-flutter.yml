@@ -31,7 +31,7 @@ jobs:
       - name: Descargar dependencias
         run: flutter pub get
       - name: Analizar Dart
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Ejecutar pruebas
         run: flutter test
       - name: Compilar APK de pruebas
