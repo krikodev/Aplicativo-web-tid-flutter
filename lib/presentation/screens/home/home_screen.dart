@@ -34,6 +34,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _buscar({String? consulta}) async {
+    _temporizadorBusqueda?.cancel();
     final termino = (consulta ?? _dniController.text).trim();
 
     if (_buscarPorTracking ? termino.length < 3 :
