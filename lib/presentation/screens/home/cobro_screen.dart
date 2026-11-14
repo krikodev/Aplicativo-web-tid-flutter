@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:apps_transporte/core/utils/app_colors.dart';
+import 'package:apps_transporte/core/utils/calculo_cobro.dart';
 import 'package:apps_transporte/core/widgets/custom_button.dart';
 import 'package:apps_transporte/data/datasources/api_service.dart';
 import 'evidencia_screen.dart';
@@ -15,11 +16,10 @@ class CobroScreen extends StatefulWidget {
 class _CobroScreenState extends State<CobroScreen> {
   bool _isLoading = true;
   double _deudaTotal = 0.0;
-  double _descuento = 0.0;
   bool _requiereCobro = false;
   int? _idMedioPago;
   List<dynamic> _detalles = [];
-  final TextEditingController _descuentoCtrl = TextEditingController();
+  final TextEditingController _montoCobradoCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -36,6 +36,7 @@ class _CobroScreenState extends State<CobroScreen> {
       setState(() {
         // MODIFICADO: leer los datos del nuevo formato PHP.
         _deudaTotal = ((result['deuda_total'] ?? 0) as num).toDouble();
+        _montoCobradoCtrl.text = _deudaTotal.toStringAsFixed(2);
 
         _requiereCobro = result['requiere_cobro'] == true;
 
@@ -75,43 +76,32 @@ class _CobroScreenState extends State<CobroScreen> {
     }
   }
 
-  // MODIFICADO: validar descuento y medio de pago.
+  // El operario introduce cuánto cobró. El descuento no se edita.
   void _irATomarFotos() {
-    if (_descuento < 0) {
-      _mostrarError('El descuento no puede ser negativo.');
+    final montoCobrado = CalculoCobro.montoValido(
+      _montoCobradoCtrl.text,
+      _deudaTotal,
+    );
+    if (montoCobrado == null) {
+      _mostrarError('Ingresa un monto mayor a cero, no superior al total y con máximo 2 decimales.');
       return;
     }
 
-    if (_descuento > 0 && _descuento >= _deudaTotal) {
-      _mostrarError('El descuento debe ser menor al total de la encomienda.');
-      return;
-    }
-
-    // NUEVO: exigir medio de pago cuando hay un cobro.
     if (_idMedioPago == null) {
       _mostrarError('Selecciona el medio de pago utilizado.');
       return;
     }
 
-    final totalACobrar = double.parse(
-      (_deudaTotal - _descuento).toStringAsFixed(2),
-    );
-
-    if (totalACobrar <= 0) {
-      _mostrarError('El importe a cobrar debe ser mayor que cero.');
-      return;
-    }
+    final descuento = CalculoCobro.descuento(_deudaTotal, montoCobrado);
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => EvidenciaScreen(
           trackings: widget.trackings,
-          montoCobrado: totalACobrar,
+          montoCobrado: montoCobrado,
           requiereFirma: true,
-
-          // NUEVO: pasar los datos para completar el registro.
-          descuento: _descuento,
+          descuento: descuento,
           idMedioPago: _idMedioPago!,
         ),
       ),
@@ -128,7 +118,7 @@ class _CobroScreenState extends State<CobroScreen> {
   // NUEVO: liberar el controlador.
   @override
   void dispose() {
-    _descuentoCtrl.dispose();
+    _montoCobradoCtrl.dispose();
     super.dispose();
   }
 
@@ -188,8 +178,13 @@ class _CobroScreenState extends State<CobroScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double totalACobrar = _deudaTotal - _descuento;
-    if (totalACobrar < 0) totalACobrar = 0;
+    final montoCobrado = CalculoCobro.montoValido(
+      _montoCobradoCtrl.text,
+      _deudaTotal,
+    );
+    final descuento = montoCobrado == null
+        ? null
+        : CalculoCobro.descuento(_deudaTotal, montoCobrado);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -273,7 +268,7 @@ class _CobroScreenState extends State<CobroScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
-                                    "Deuda Total:",
+                                    "Total a cobrar:",
                                     style: TextStyle(
                                       fontSize: 16,
                                       color: AppColors.textGrey,
@@ -290,7 +285,7 @@ class _CobroScreenState extends State<CobroScreen> {
                               ),
                               const Divider(height: 30),
                               const Text(
-                                "Aplicar Descuento (S/):",
+                                "¿Cuánto cobra realmente? (S/):",
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: AppColors.textGrey,
@@ -298,17 +293,17 @@ class _CobroScreenState extends State<CobroScreen> {
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                controller: _descuentoCtrl,
+                                controller: _montoCobradoCtrl,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                       decimal: true,
                                     ),
                                 decoration: InputDecoration(
                                   prefixIcon: const Icon(
-                                    Icons.money_off,
+                                    Icons.payments_outlined,
                                     color: AppColors.accent,
                                   ),
-                                  hintText: "0.00",
+                                  hintText: "Ejemplo: 70.00",
                                   filled: true,
                                   fillColor: AppColors.softBackground,
                                   border: OutlineInputBorder(
@@ -316,12 +311,41 @@ class _CobroScreenState extends State<CobroScreen> {
                                     borderSide: BorderSide.none,
                                   ),
                                 ),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _descuento = double.tryParse(value) ?? 0.0;
-                                  });
-                                },
+                                onChanged: (_) => setState(() {}),
                               ),
+                              const SizedBox(height: 14),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Descuento automático:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                  Text(
+                                    descuento == null
+                                        ? '—'
+                                        : 'S/ ${descuento.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (montoCobrado == null)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'El importe debe ser mayor que cero y no superar el total.',
+                                    style: TextStyle(
+                                      color: AppColors.error,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
                               // NUEVO: selector del medio de pago.
                               const SizedBox(height: 20),
                               const Text(
@@ -382,7 +406,9 @@ class _CobroScreenState extends State<CobroScreen> {
                     ),
                     child: CustomButton(
                       text:
-                          'Cobrar S/ ${totalACobrar.toStringAsFixed(2)} y Tomar Fotos',
+                          montoCobrado == null
+                              ? 'Ingresa el importe cobrado'
+                              : 'Cobrar S/ ${montoCobrado.toStringAsFixed(2)} y Tomar Foto',
                       backgroundColor: AppColors.accent,
                       onPressed: _irATomarFotos,
                     ),
