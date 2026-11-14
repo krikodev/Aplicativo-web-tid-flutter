@@ -218,7 +218,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
   Widget build(BuildContext context) {
     final int faltantes = fotosRequeridas - _fotos.length;
     final bool isComplete =
-        faltantes == 0 && (!widget.requiereFirma || _firmaController.isNotEmpty);
+        faltantes == 0 && (!widget.requiereFirma || !_firmaController.isEmpty);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
