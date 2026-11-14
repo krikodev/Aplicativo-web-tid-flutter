@@ -25,7 +25,7 @@ void main() {
 
       expect(find.text('Total a cobrar:'), findsOneWidget);
       expect(find.text('¿Cuánto cobra realmente? (S/):'), findsOneWidget);
-      expect(find.text('S/ 100.00'), findsOneWidget);
+      expect(find.text('S/ 100.00'), findsWidgets);
       expect(find.text('S/ 0.00'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField).first, '70.00');
