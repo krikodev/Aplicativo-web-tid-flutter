@@ -32,6 +32,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
   final ImagePicker _picker = ImagePicker();
   final List<XFile> _fotos = [];
   bool _isUploading = false;
+  bool _seleccionandoFoto = false;
 
   // Controlador de la firma (Líneas más gruesas y suaves)
   final SignatureController _firmaController = SignatureController(
@@ -40,42 +41,57 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
     exportBackgroundColor: Colors.white,
   );
 
-  int get fotosRequeridas => widget.trackings.length * 2;
+  // El flujo móvil procesa una encomienda por vez: una foto y una firma.
+  int get fotosRequeridas => 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _firmaController.addListener(_actualizarEstadoFirma);
+  }
+
+  void _actualizarEstadoFirma() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
+    _firmaController.removeListener(_actualizarEstadoFirma);
     _firmaController.dispose();
     super.dispose();
   }
 
   Future<void> _obtenerFoto(ImageSource source) async {
-    final int faltantes = fotosRequeridas - _fotos.length;
-    if (faltantes <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ya tienes las $fotosRequeridas fotos necesarias.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      return;
-    }
+    if (_seleccionandoFoto || _isUploading || _fotos.isNotEmpty) return;
+    _seleccionandoFoto = true;
     try {
       if (source == ImageSource.gallery) {
         final seleccionadas = await _picker.pickMultiImage(
-          limit: faltantes,
+          limit: 1,
           imageQuality: 80,
         );
-        if (seleccionadas.isNotEmpty)
-          setState(() => _fotos.addAll(seleccionadas));
+        if (mounted && seleccionadas.isNotEmpty && _fotos.isEmpty) {
+          setState(() => _fotos.add(seleccionadas.first));
+        }
       } else {
         final foto = await _picker.pickImage(
           source: ImageSource.camera,
           imageQuality: 80,
         );
-        if (foto != null) setState(() => _fotos.add(foto));
+        if (mounted && foto != null && _fotos.isEmpty) {
+          setState(() => _fotos.add(foto));
+        }
       }
-    } catch (e) {
-      print("Error foto: $e");
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo obtener la foto. Inténtalo nuevamente.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      _seleccionandoFoto = false;
     }
   }
 
@@ -88,7 +104,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
     if (_fotos.length != fotosRequeridas) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Faltan fotos. Necesitas $fotosRequeridas.'),
+          content: Text('Necesitas una fotografía para confirmar la entrega.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -201,13 +217,14 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
   @override
   Widget build(BuildContext context) {
     final int faltantes = fotosRequeridas - _fotos.length;
-    final bool isComplete = faltantes == 0;
+    final bool isComplete =
+        faltantes == 0 && (!widget.requiereFirma || _firmaController.isNotEmpty);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
-          "Evidencias de Entrega",
+          "Foto y firma de entrega",
           style: TextStyle(
             color: AppColors.textDark,
             fontSize: 18,
@@ -253,7 +270,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  "Progreso de Fotos",
+                                  "Fotografía de entrega",
                                   style: TextStyle(
                                     color: AppColors.textGrey,
                                     fontSize: 13,
@@ -423,7 +440,7 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                   if (widget.requiereFirma) ...[
                     const SizedBox(height: 32),
                     const Text(
-                      "Firma del Cliente Requerida",
+                      "Firma del receptor (obligatoria)",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -486,7 +503,9 @@ class _EvidenciaScreenState extends State<EvidenciaScreen> {
                 text: _isUploading
                     ? 'Subiendo Evidencias...'
                     : 'Confirmar Entrega',
-                onPressed: isComplete ? _finalizarEntrega : () {},
+                onPressed: isComplete && !_isUploading
+                    ? _finalizarEntrega
+                    : () {},
                 isLoading: _isUploading,
                 backgroundColor: isComplete
                     ? AppColors.success
