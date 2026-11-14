@@ -294,8 +294,68 @@ void main() {
     });
   });
 
+  test('Rechaza dos fotos antes de subir archivos', () async {
+    final result = await ApiService.registrarEntregaLote(
+      trackings: ['TID-001'],
+      fotos: [XFile('/no-existe-1'), XFile('/no-existe-2')],
+      firma: XFile('/no-existe-firma'),
+      montoCobrado: 70,
+      descuento: 30,
+      idMedioPago: 1,
+    );
+    expect(result['success'], false);
+    expect(result['error'], contains('exactamente una foto'));
+  });
+
+  test('No permite confirmar una entrega sin firma', () async {
+    final result = await ApiService.registrarEntregaLote(
+      trackings: ['TID-001'],
+      fotos: [XFile('/no-existe-foto')],
+      firma: null,
+      montoCobrado: 0,
+      descuento: 0,
+      idMedioPago: null,
+    );
+    expect(result['success'], false);
+    expect(result['error'], contains('firma'));
+  });
+
+  test('La entrega al crédito sigue sin registrar cobro', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('id_usuario', 42);
+    final temp = await Directory.systemTemp.createTemp('tid-credito-test-');
+    try {
+      final foto = File('${temp.path}/evidencia.png');
+      await foto.writeAsBytes([137, 80, 78, 71]);
+      http.Request? solicitud;
+      final result = await http.runWithClient(
+        () => ApiService.registrarEntregaLote(
+          trackings: ['TID-CREDITO'],
+          fotos: [XFile(foto.path)],
+          firma: XFile(foto.path),
+          montoCobrado: 0,
+          descuento: 0,
+          idMedioPago: null,
+        ),
+        () => MockClient((request) async {
+          if (request.url.host == 'api.cloudinary.com') {
+            return jsonResponse({'secure_url': 'https://example.com/foto.png'});
+          }
+          solicitud = request;
+          return jsonResponse({'success': true, 'cobro_realizado': false});
+        }),
+      );
+      expect(result['success'], true);
+      expect(solicitud!.bodyFields['monto_cobrado'], '0.00');
+      expect(solicitud!.bodyFields['id_medio_pago'], '');
+      expect(solicitud!.bodyFields['descuento'], '0.00');
+    } finally {
+      await temp.delete(recursive: true);
+    }
+  });
+
   test(
-    'La entrega conserva fotos, firma, cobro, descuento e ID numérico',
+    'Entrega con una foto, firma y descuento automático correcto',
     () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('id_usuario', 42);
@@ -310,8 +370,8 @@ void main() {
             trackings: ['TID-001'],
             fotos: [XFile(file.path)],
             firma: XFile(file.path),
-            montoCobrado: 20,
-            descuento: 2,
+            montoCobrado: 70,
+            descuento: 30,
             idMedioPago: 1,
           ),
           () => MockClient((request) async {
@@ -336,8 +396,8 @@ void main() {
           'trackings': '["TID-001"]',
           'urls_fotos': '["https://example.com/photo-1.png"]',
           'url_firma': 'https://example.com/photo-2.png',
-          'monto_cobrado': '20.00',
-          'descuento': '2.00',
+          'monto_cobrado': '70.00',
+          'descuento': '30.00',
           'id_usuario': '42',
           'id_medio_pago': '1',
         });
