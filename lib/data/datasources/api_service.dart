@@ -303,18 +303,29 @@ class ApiService {
     required double descuento,
     required int? idMedioPago,
   }) async {
-    if (trackings.isEmpty) {
+    if (trackings.length != 1) {
       return {
         'success': false,
-        'error': 'No se recibieron códigos de seguimiento.',
+        'error': 'Debes entregar una sola encomienda por operación.',
       };
     }
 
-    if (fotos.isEmpty) {
-      return {'success': false, 'error': 'Debes tomar al menos una foto.'};
+    if (fotos.length != 1) {
+      return {
+        'success': false,
+        'error': 'Debes adjuntar exactamente una foto de evidencia.',
+      };
     }
 
-    if (montoCobrado < 0 || descuento < 0) {
+    if (firma == null) {
+      return {
+        'success': false,
+        'error': 'Debes adjuntar la firma del receptor.',
+      };
+    }
+
+    if (!montoCobrado.isFinite || !descuento.isFinite ||
+        montoCobrado < 0 || descuento < 0) {
       return {
         'success': false,
         'error': 'El monto y el descuento no pueden ser negativos.',
@@ -368,18 +379,14 @@ class ApiService {
       urlsFotos.add(urlFoto);
     }
 
-    // NUEVO: subir la firma por separado, si se proporcionó.
-    String? urlFirma;
+    // La firma es obligatoria y se sube por separado.
+    final urlFirma = await _subirFotoCloudinary(firma);
 
-    if (firma != null) {
-      urlFirma = await _subirFotoCloudinary(firma);
-
-      if (urlFirma == null) {
-        return {
-          'success': false,
-          'error': 'No se pudo subir la firma del receptor.',
-        };
-      }
+    if (urlFirma == null) {
+      return {
+        'success': false,
+        'error': 'No se pudo subir la firma del receptor.',
+      };
     }
 
     return _post(
@@ -387,7 +394,7 @@ class ApiService {
       body: {
         'trackings': jsonEncode(trackings),
         'urls_fotos': jsonEncode(urlsFotos),
-        'url_firma': urlFirma ?? '',
+        'url_firma': urlFirma,
         'monto_cobrado': montoCobrado.toStringAsFixed(2),
         'descuento': descuento.toStringAsFixed(2),
         'id_usuario': idUsuario,
